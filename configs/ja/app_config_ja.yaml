@@ -1,0 +1,121 @@
+# 各要素毎のExcelの出力開始位置を定義
+targetNamePosition: [6, 2]
+targetPermissionSetPosition: [6, 3]
+targetLicensePosition: [6, 4]
+targetCustomPosition: [6, 5]
+typePosition: [1, 7]
+namePosition: [2, 7]
+secondNamePosition: [3, 7]
+labelPosition: [4, 7]
+resultPosition: [6, 7]
+orgDifferentXPosition: 5
+
+# 出力メタデータの種類が変わる境界での、Excelの罫線の出力パラメータを定義
+boundaryTopBorderOn: true
+boundaryTopBorderColor: "000000"
+boundaryTopBorderStyle: "double"
+
+# フル権限の場合のセルの色
+fullAuthorityColor: "ccffcc"
+# 一部権限有の場合のセルの色
+partialAuthorityColor: "fff2cc"
+# 権限無しの場合のセルの色
+noAuthorityColor: "ffcccc"
+# 対象外の場合のセルの色
+notApplicableColor: "d9d9d9"
+
+# 出力対象外に場合に出力するラベルの定義
+notApplicableLabel: "-"
+
+# 組織間で差分があった場合に出力するラベルの定義
+orgDifferentLabel: "〇"
+
+# 複数組織の情報を出力する場合のプロファイル/権限セット毎のグループの色
+targetGroupColorDefault: "ffffff"
+targetGroupColor1: "ddebf7"
+targetGroupColor2: "fce4d6"
+
+# True/Falseの出力に対応するラベルの定義
+trueLabel: "☑"
+falseLabel: "☐"
+
+objectPermissionsLabel:
+  create: "C"
+  read: "R"
+  edit: "U"
+  delete: "D"
+  viewAll: "V"
+  modifyAll: "M"
+
+fieldLevelSecurityLabel:
+  readable: "R"
+  editable: "U"
+
+layoutAssignLabel:
+  master: "マスタ"
+
+tabVisibilityLabel:
+  defaultOn: "表示"
+  defaultOff: "非表示"
+  hidden: "隠す"
+  available: "利用可"
+  visible: "参照可"
+
+applicationVisibilityLabel:
+  visible: "参照可"
+  default: "D"
+  openBracket: "("
+  closeBracket: ")"
+
+recordTypeVisibilityLabel:
+  visible: "表示"
+  default: "D"
+  personAccountDefault: "P"
+  openBracket: "("
+  closeBracket: ")"
+  delimiter: "/"
+
+sessionSettingLabel:
+  requiredSessionLevel: "ログインに必要なセッションセキュリティレベル"
+  sessionTimeout: "セッションタイムアウトの開始条件"
+
+passwordPolicyLabel:
+  forgotPasswordRedirect: "パスワードを忘れた場合のメールに記載されたリンクをすぐに期限切れにしない"
+  lockoutInterval: "ロックアウトの有効期間"
+  maxLoginAttempts: "ログイン失敗によりロックするまでの回数"
+  minimumPasswordLength: "最小パスワード長"
+  minimumPasswordLifetime: "パスワードの有効期限は 1 日以上にする必要があります"
+  obscure: "パスワードのリセットの秘密の回答を非表示にする"
+  passwordComplexity: "パスワード文字列の制限"
+  passwordExpiration: "パスワードの有効期間"
+  passwordHistory: "過去のパスワードの利用制限回数"
+  passwordQuestion: "パスワード質問の制限"
+
+passwordComplexityLabel:
+  0: "制限なし"
+  1: "英字と数字を含める"
+  2: "英字、数字、および特殊文字を含める"
+  3: "数字、大文字、および小文字を含める"
+  4: "数字、大文字、小文字、および特殊文字を含める"
+  5: "数字、大文字、小文字、特殊文字のうち、少なくとも 3 つを含める"
+
+settingTypeLabel:
+  ObjectPermission: "オブジェクト権限"
+  FieldLevelSecurity: "項目レベルセキュリティ"
+  LayoutAssignment: "割り当てレイアウト"
+  RecordTypeVisibility: "表示可能レコードタイプ"
+  UserPermission: "システム管理者/一般ユーザ権限"
+  ApplicationVisibility: "参照可能アプリケーション"
+  TabVisibility: "表示可能タブ"
+  ApexClassAccess: "有効なApexクラス"
+  ApexPageAccess: "有効なVisualForceページアクセス"
+  CustomPermission: "有効なカスタム権限"
+  LoginIpRange: "ログインIPアドレス制限"
+  SessionSetting: "セッション設定"
+  PasswordPolicy: "パスワードポリシー"
+
+# オブジェクト権限で出力対象外とするオブジェクトの定義
+exclusionObjectPermission: [
+  User
+]
+

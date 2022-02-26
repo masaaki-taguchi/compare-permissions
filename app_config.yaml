@@ -1,0 +1,118 @@
+# define the starting positions for output to Excel
+targetNamePosition: [6, 2]
+targetPermissionSetPosition: [6, 3]
+targetLicensePosition: [6, 4]
+targetCustomPosition: [6, 5]
+typePosition: [1, 7]
+namePosition: [2, 7]
+secondNamePosition: [3, 7]
+labelPosition: [4, 7]
+resultPosition: [6, 7]
+orgDifferentXPosition: 5
+
+# define output parameters for Excel ruled lines at boundaries
+boundaryTopBorderOn: true
+boundaryTopBorderColor: "000000"
+boundaryTopBorderStyle: "double"
+
+# cell color for full permissions
+fullAuthorityColor: "ccffcc"
+# cell color for some permissions
+partialAuthorityColor: "fff2cc"
+# cell color for no permission
+noAuthorityColor: "ffcccc"
+# cell color and label for not applicable
+notApplicableColor: "d9d9d9"
+notApplicableLabel: "-"
+# label for there are inter-org differences
+orgDifferentLabel: "〇"
+
+# cell colors when outputting information for multiple organizations
+targetGroupColorDefault: "ffffff"
+targetGroupColor1: "ddebf7"
+targetGroupColor2: "fce4d6"
+
+# labels for true/false
+trueLabel: "☑"
+falseLabel: "☐"
+
+objectPermissionsLabel:
+  create: "C"
+  read: "R"
+  edit: "U"
+  delete: "D"
+  viewAll: "V"
+  modifyAll: "M"
+
+fieldLevelSecurityLabel:
+  readable: "R"
+  editable: "U"
+
+layoutAssignLabel:
+  master: "Master"
+
+tabVisibilityLabel:
+  defaultOn: "On"
+  defaultOff: "Off"
+  hidden: "Hidden"
+  available: "Available"
+  visible: "Visible"
+
+applicationVisibilityLabel:
+  visible: "Visible"
+  default: "D"
+  openBracket: "("
+  closeBracket: ")"
+
+recordTypeVisibilityLabel:
+  visible: "Visible"
+  default: "D"
+  personAccountDefault: "P"
+  openBracket: "("
+  closeBracket: ")"
+  delimiter: "/"
+
+sessionSettingLabel:
+  requiredSessionLevel: "Session Security Level Required at Login"
+  sessionTimeout: "Session Times Out After"
+
+passwordPolicyLabel:
+  forgotPasswordRedirect: "Don't immediately expire links in forgot password emails"
+  lockoutInterval: "Lockout effective period"
+  maxLoginAttempts: "Maximum invalid login attempts"
+  minimumPasswordLength: "Minimum password length"
+  minimumPasswordLifetime: "Require a minimum 1 day password lifetime"
+  obscure: "Obscure secret answer for password resets"
+  passwordComplexity: "Password complexity requirement"
+  passwordExpiration: "User passwords expire in"
+  passwordHistory: "Enforce password history"
+  passwordQuestion: "Password question requirement"
+
+passwordComplexityLabel:
+  0: "No restriction"
+  1: "Must include alpha and numeric characters"
+  2: "Must include alpha, numeric, and special characters"
+  3: "Must include numbers and uppercase and lowercase letters"
+  4: "Must include numbers, uppercase and lowercase letters, and special characters"
+  5: "Must include 3 of the following: numbers, uppercase letters, lowercase letters, special characters"
+
+settingTypeLabel:
+  ObjectPermission: "ObjectPermission"
+  FieldLevelSecurity: "FieldLevelSecurity"
+  LayoutAssignment: "LayoutAssignment"
+  RecordTypeVisibility: "RecordTypeVisibility"
+  UserPermission: "UserPermission"
+  ApplicationVisibility: "ApplicationVisibility"
+  TabVisibility: "TabVisibility"
+  ApexClassAccess: "ApexClassAccess"
+  ApexPageAccess: "ApexPageAccess"
+  CustomPermission: "CustomPermission"
+  LoginIpRange: "LoginIpRange"
+  SessionSetting: "SessionSetting"
+  PasswordPolicy: "PasswordPolicy"
+
+# define exclusion objects for object permissions
+exclusionObjectPermission: [
+  User
+]
+

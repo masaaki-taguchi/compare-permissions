@@ -1,0 +1,82 @@
+# app config file name
+appConfigPath: "app_config.yaml"
+# template excel file name
+templateFilePath: "template.xlsx"
+# output excel file name
+resultFilePath: "result.xlsx"
+
+#
+# define the connecting organizations
+#
+# If more than one is defined, the metadata for each organization's profile/permission set is retrieved and compared.
+#
+org:
+  - name: (ANY ORGANIZATION NAME 1)
+    loginUrl: "https://test.salesforce.com"
+    apiVersion : "54.0"
+    userName: "(YOUR USER NAME)"
+    password: "(YOUR USER PASSWORD)"
+#  - name: (ANY ORGANIZATION NAME 2)
+#    loginUrl: "https://login.salesforce.com"
+#    apiVersion : "54.0"
+#    userName: "(YOUR USER NAME)"
+#    password: "(YOUR USER PASSWORD)"
+
+#
+# define the target profiles and permission sets
+#
+# Specify the profile name and permission set name (label) in "name".
+# For permission set, "ps" must be set to true.
+#
+target:
+  - name: "CustomAdmin"
+  - name: "CustomStandardUser"
+  - name: "SalesUser"
+    ps: true
+
+#
+# define the types of setting to be output and the output order
+#
+# Select the target setting type from the following.
+#   - ObjectPermission
+#   - FieldLevelSecurity
+#   - LayoutAssignment
+#   - RecordTypeVisibility
+#   - UserPermission
+#   - ApplicationVisibility
+#   - TabVisibility
+#   - ApexClassAccess
+#   - ApexPageAccess
+#   - CustomPermission
+#   - LoginIpRange
+#   - SessionSetting
+#   - PasswordPolicy
+#
+settingType: [
+  "ObjectPermission",
+  "FieldLevelSecurity",
+  "LayoutAssignment",
+  "RecordTypeVisibility",
+  "UserPermission",
+  "ApplicationVisibility",
+  "TabVisibility",
+  "ApexClassAccess",
+  "ApexPageAccess",
+  "CustomPermission",
+  "LoginIpRange",
+  "SessionSetting",
+  "PasswordPolicy"
+]
+
+#
+# define the target objects
+#
+# If this parameter is not defined, All objects included in the profiles/permission sets are targets.
+#
+object: [
+  Account, 
+  Contact, 
+  Opportunity, 
+  User, 
+]
+

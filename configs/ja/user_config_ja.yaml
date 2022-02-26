@@ -1,0 +1,82 @@
+# アプリケーション設定ファイル名
+appConfigPath: "app_config_ja.yaml"
+# テンプレートのExcelファイル名
+templateFilePath: "template_ja.xlsx"
+# 出力する結果のExcelファイル名
+resultFilePath: "result.xlsx"
+
+#
+# 接続する組織の指定
+#
+# 複数指定した場合は、それぞれの組織のプロファイル/権限セットのメタデータを取得し、比較する。
+#
+org:
+  - name: (任意の組織名1)
+    loginUrl: "https://test.salesforce.com"
+    apiVersion : "54.0"
+    userName: "(ユーザ名)"
+    password: "(パスワード)"
+#  - name: (任意の組織名2)
+#    loginUrl: "https://login.salesforce.com"
+#    apiVersion : "54.0"
+#    userName: "(ユーザ名)"
+#    password: "(パスワード)"
+
+#
+# 対象とするプロファイルと権限セットの指定
+#
+# nameにプロファイル名、権限セット名(ラベル)を指定する。
+# 権限セットの場合はpsにtrueを指定する。
+#
+target:
+  - name: "カスタムシステム管理者"
+  - name: "カスタム一般ユーザ"
+  - name: "営業ユーザ"
+    ps: true
+
+#
+# 出力する設定種別と出力順の指定
+#
+# 以下から設定種別を選択し、指定する。
+#   - ObjectPermission (オブジェクト権限)
+#   - FieldLevelSecurity (項目レベルセキュリティ)
+#   - LayoutAssignment (割り当てレイアウト)
+#   - RecordTypeVisibility (表示可能レコードタイプ)
+#   - UserPermission (システム管理者/一般ユーザ権限)
+#   - ApplicationVisibility (参照可能アプリケーション)
+#   - TabVisibility (表示可能タブ)
+#   - ApexClassAccess (有効なApexクラス)
+#   - ApexPageAccess (有効なVisualForceページアクセス)
+#   - CustomPermission (有効なカスタム権限)
+#   - LoginIpRange (ログインIPアドレス制限)
+#   - SessionSetting (セッション設定)
+#   - PasswordPolicy (パスワードポリシー)
+#
+settingType: [
+  "ObjectPermission",
+  "FieldLevelSecurity",
+  "LayoutAssignment",
+  "RecordTypeVisibility",
+  "UserPermission",
+  "ApplicationVisibility",
+  "TabVisibility",
+  "ApexClassAccess",
+  "ApexPageAccess",
+  "CustomPermission",
+  "LoginIpRange",
+  "SessionSetting",
+  "PasswordPolicy"
+]
+
+#
+# 対象とするオブジェクトの指定
+#
+# このパラメータが無い場合は、プロファイル/権限セットに含まれる全オブジェクトを対象とする。
+#
+object: [
+  Account, 
+  Contact, 
+  Opportunity, 
+  User, 
+]
+
