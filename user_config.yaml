@@ -4,6 +4,8 @@ appConfigPath: "app_config.yaml"
 templateFilePath: "template.xlsx"
 # output excel file name
 resultFilePath: "result.xlsx"
+# enable excel format copy
+excelFormatCopy: true
 
 #
 # define the connecting organizations

@@ -4,6 +4,8 @@ appConfigPath: "app_config_ja.yaml"
 templateFilePath: "template_ja.xlsx"
 # 出力する結果のExcelファイル名
 resultFilePath: "result.xlsx"
+# Excelの書式コピーの有無
+excelFormatCopy: true
 
 #
 # 接続する組織の指定

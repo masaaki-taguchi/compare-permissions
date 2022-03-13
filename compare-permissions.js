@@ -26,6 +26,10 @@ const LOGIN_IP_RANGE = 'LoginIpRange';
 const SESSION_SETTING = 'SessionSetting';
 const PASSWORD_POLICY = 'PasswordPolicy';
 
+const BOOLEAN_OUTPUT = '1';
+const BOOLEAN_NO_OUTPUT = '2';
+const BOOLEAN_OUTPUT_WITH_NA = '3';
+
 const METADATA_TYPE_PROFILE = 'Profile';
 const METADATA_TYPE_PERMISSION_SET = 'PermissionSet';
 const METADATA_TYPE_SESSION_SETTING = 'ProfileSessionSetting';
@@ -379,47 +383,47 @@ const appConfig = global.appConfig;
     // define the output method for each metadata
     const defaultPutMap = new Map([
       [OBJECT_PERMISSION,
-        [OBJECT_PERMISSION, objectPermissionMap, false,
+        [OBJECT_PERMISSION, objectPermissionMap, BOOLEAN_NO_OUTPUT,
           'CRUD', 'R', '', true, false]],
       [FIELD_LEVEL_SECURITY,
-        [FIELD_LEVEL_SECURITY, fieldLevelSecurityMap, false,
+        [FIELD_LEVEL_SECURITY, fieldLevelSecurityMap, BOOLEAN_NO_OUTPUT,
           'RU', 'R', '', true, false]],
       [LAYOUT_ASSIGNMENT,
-        [LAYOUT_ASSIGNMENT, layoutAssignmentMap, true,
+        [LAYOUT_ASSIGNMENT, layoutAssignmentMap, BOOLEAN_OUTPUT,
           METADATA_TRUE, '', METADATA_FALSE, false, true]],
       [RECORD_TYPE_VISIBILITY,
-        [RECORD_TYPE_VISIBILITY, recordTypeVisibilityMap, false,
+        [RECORD_TYPE_VISIBILITY, recordTypeVisibilityMap, BOOLEAN_NO_OUTPUT,
           appConfig.recordTypeVisibilityLabel.visible, '', '',
           true, false]],
       [APEX_CLASS_ACCESS,
-        [APEX_CLASS_ACCESS, apexClassAccessMap, true,
+        [APEX_CLASS_ACCESS, apexClassAccessMap, BOOLEAN_OUTPUT_WITH_NA,
           METADATA_TRUE, '', METADATA_FALSE, false, false]],
       [APEX_PAGE_ACCESS,
-        [APEX_PAGE_ACCESS, apexPageAccessMap, true,
+        [APEX_PAGE_ACCESS, apexPageAccessMap, BOOLEAN_OUTPUT_WITH_NA,
           METADATA_TRUE, '', METADATA_FALSE, false, false]],
       [USER_PERMISSION,
-        [USER_PERMISSION, userPermissionMap, true,
+        [USER_PERMISSION, userPermissionMap, BOOLEAN_OUTPUT,
           METADATA_TRUE, '', METADATA_FALSE, false, false]],
       [APPLICATION_VISIBILITY,
-        [APPLICATION_VISIBILITY, applicationVisibilityMap, false,
+        [APPLICATION_VISIBILITY, applicationVisibilityMap, BOOLEAN_NO_OUTPUT,
           appConfig.applicationVisibilityLabel.visible, '', '', true, false]],
       [TAB_VISIBILITY,
-        [TAB_VISIBILITY, tabVisibilityMap, false,
+        [TAB_VISIBILITY, tabVisibilityMap, BOOLEAN_NO_OUTPUT,
           '^' + appConfig.tabVisibilityLabel.defaultOn + '|' + appConfig.tabVisibilityLabel.available,
           '^' + appConfig.tabVisibilityLabel.defaultOff + '|' + appConfig.tabVisibilityLabel.visible,
           appConfig.tabVisibilityLabel.hidden,
           true, false]],
       [LOGIN_IP_RANGE,
-        [LOGIN_IP_RANGE, loginIpRangeMap, true,
+        [LOGIN_IP_RANGE, loginIpRangeMap, BOOLEAN_OUTPUT,
           METADATA_TRUE, '', METADATA_FALSE, false, true]],
       [CUSTOM_PERMISSION,
-        [CUSTOM_PERMISSION, customPermissionMap, true,
+        [CUSTOM_PERMISSION, customPermissionMap, BOOLEAN_OUTPUT,
           METADATA_TRUE, '', METADATA_FALSE, false, false]],
       [SESSION_SETTING,
-        [SESSION_SETTING, sessionSettingMap, false,
+        [SESSION_SETTING, sessionSettingMap, BOOLEAN_NO_OUTPUT,
           '', '', '', false, true]],
       [PASSWORD_POLICY,
-        [PASSWORD_POLICY, passwordPolicyMap, false,
+        [PASSWORD_POLICY, passwordPolicyMap, BOOLEAN_NO_OUTPUT,
           '', '', '', false, true]]
     ]);
 
@@ -445,7 +449,7 @@ const appConfig = global.appConfig;
       const settingType = value[0];
       const metadataMap = value[1];
       const sortedMap = new Map([...metadataMap.entries()].sort());
-      const isBoolean = value[2];
+      const booleanBehavior = value[2];
       const fullAuthorityValue = value[3];
       const partialAuthorityValue = value[4];
       const noAuthorityValue = value[5];
@@ -455,7 +459,9 @@ const appConfig = global.appConfig;
       let paintedFirstframe = false;
 
       for (const key of sortedMap.keys()) {
-        putTemplateStyle(xlsxSheet, templateStyleList, resultWorkY);
+        if (userConfig.excelFormatCopy === undefined || userConfig.excelFormatCopy === true) {
+          putTemplateStyle(xlsxSheet, templateStyleList, resultWorkY);
+        }
         if (!paintedFirstframe) {
           putFirstFrameStyle(xlsxSheet, templateStyleList, resultWorkY);
           paintedFirstframe = true;
@@ -501,7 +507,7 @@ const appConfig = global.appConfig;
                   xlsxCell.style('fill', appConfig.noAuthorityColor);
                 }
               }
-              if (isBoolean) {
+              if (booleanBehavior !== BOOLEAN_NO_OUTPUT) {
                 xlsxCell.value(convertBoolean(value));
               } else {
                 xlsxCell.value(value);
@@ -523,8 +529,11 @@ const appConfig = global.appConfig;
                 if (fillsBlankWithNoAuthorityColor) {
                   xlsxCell.style('fill', appConfig.noAuthorityColor);
                 }
-              } else if (isBoolean) {
+              } else if (booleanBehavior === BOOLEAN_OUTPUT) {
                 xlsxCell.value(convertBoolean(METADATA_FALSE));
+                xlsxCell.style('fill', appConfig.noAuthorityColor);
+              } else if (booleanBehavior === BOOLEAN_OUTPUT_WITH_NA) {
+                xlsxCell.value(appConfig.notApplicableLabel);
                 xlsxCell.style('fill', appConfig.noAuthorityColor);
               } else if (fillsBlankWithNoAuthorityColor) {
                 xlsxCell.style('fill', appConfig.noAuthorityColor);

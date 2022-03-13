@@ -8,7 +8,7 @@
 
 [日本語](./README-ja.md)  
 
-Salesforce's profile and permission set settings exporter to Excel
+Salesforce's profile and permission set settings exporter to Excel and compare
 ## Description
 Compare permissions is a CLI tool that exports Salesforce's profile and permission set settings to Excel.  
 It also supports multiple organizations and makes it possible to compare their settings on Excel.  

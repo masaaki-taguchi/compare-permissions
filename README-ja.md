@@ -7,7 +7,7 @@
 </p>
 
 [English](./README.md)  
-Salesforceのプロファイルと権限セットの設定値をExcelに出力します。
+Salesforceのプロファイルと権限セットの設定値をExcelに出力し、比較します。
 
 ## 概要
 Salesforceのプロファイルと権限セットの設定値をExcelに出力するCLIツールです。  
