@@ -71,6 +71,7 @@ recordTypeVisibilityLabel:
   visible: "表示"
   default: "D"
   personAccountDefault: "P"
+  companyAccountDefault: "C"
   openBracket: "("
   closeBracket: ")"
   delimiter: "/"

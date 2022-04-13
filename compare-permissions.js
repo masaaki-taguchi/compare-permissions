@@ -577,7 +577,11 @@ function retrieveBaseInfo(metadataList, orgName, isProfile, baseInfoMap) {
     }
     valueMap.set(KEY_BASE_INFO_PERMISSION_SET, isProfile ? METADATA_FALSE : METADATA_TRUE);
     valueMap.set(KEY_BASE_INFO_CUSTOM, metadata.custom);
-    valueMap.set(KEY_BASE_INFO_USER_LICENSE, metadata.userLicense);
+    if (isProfile) {
+      valueMap.set(KEY_BASE_INFO_USER_LICENSE, metadata.userLicense);
+    } else {
+      valueMap.set(KEY_BASE_INFO_USER_LICENSE, metadata.license);
+    }
     valueMap.set(KEY_BASE_INFO_DESCRIPTION, metadata.description);
     const key = getMetadataKey(orgName, isProfile, metadata);
     baseInfoMap.set(key, valueMap);
@@ -708,25 +712,30 @@ function retrieveRecordTypeVisibilities(metadataList, orgName, isProfile, record
       }
 
       let recordType = recordTypeVisibility.recordType;
-      recordType = recordType.replace('PersonAccount', 'Account');
+      let orgRecordType = recordType;
+      recordType = recordType.replace('PersonAccount.', 'Account.');
       if (!recordTypeVisibilityMap.has(recordType)) {
         recordTypeVisibilityMap.set(recordType, new Map());
       }
 
       const valueMap = recordTypeVisibilityMap.get(recordType);
       const key = getMetadataKey(orgName, isProfile, metadata);
-
       let isPersonAccountDefault = false;
+      let isCompanyAccountDefault = false;
       if ((/^Account\./.exec(recordType) || /^Contact\./.exec(recordType)) &&
         isTrue(recordTypeVisibility.personAccountDefault)) {
-        isPersonAccountDefault = true;
+        if (/^PersonAccount\./.exec(orgRecordType)) {
+          isPersonAccountDefault = true;
+        } else {
+          isCompanyAccountDefault = true;
+        }
       }
 
       let value = '';
       if (isTrue(recordTypeVisibility.visible)) {
         value += appConfig.recordTypeVisibilityLabel.visible;
       }
-      if (isTrue(recordTypeVisibility.default) || isPersonAccountDefault) {
+      if (isTrue(recordTypeVisibility.default) || isPersonAccountDefault || isCompanyAccountDefault) {
         value += appConfig.recordTypeVisibilityLabel.openBracket;
       }
       if (isTrue(recordTypeVisibility.default)) {
@@ -738,7 +747,13 @@ function retrieveRecordTypeVisibilities(metadataList, orgName, isProfile, record
         }
         value += appConfig.recordTypeVisibilityLabel.personAccountDefault;
       }
-      if (isTrue(recordTypeVisibility.default) || isPersonAccountDefault) {
+      if (isCompanyAccountDefault) {
+        if (isTrue(recordTypeVisibility.default)) {
+          value += appConfig.recordTypeVisibilityLabel.delimiter;
+        }
+        value += appConfig.recordTypeVisibilityLabel.companyAccountDefault;
+      }
+      if (isTrue(recordTypeVisibility.default) || isPersonAccountDefault || isCompanyAccountDefault) {
         value += appConfig.recordTypeVisibilityLabel.closeBracket;
       }
       valueMap.set(key, value);

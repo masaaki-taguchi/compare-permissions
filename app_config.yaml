@@ -68,6 +68,7 @@ recordTypeVisibilityLabel:
   visible: "Visible"
   default: "D"
   personAccountDefault: "P"
+  companyAccountDefault: "C"
   openBracket: "("
   closeBracket: ")"
   delimiter: "/"
