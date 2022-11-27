@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/license-MIT-blue.svg">
 </p>
 
-[日本語](./README-ja.md)  
+[Japanese](./README-ja.md)  
 
 Salesforce's profile and permission set settings exporter to Excel and compare
 ## Description
@@ -52,12 +52,12 @@ Open user_config.yaml and edit the organization name, login URL, user name, and 
 org:
   - name: (ANY ORGANIZATION NAME 1)
     loginUrl: "https://test.salesforce.com"
-    apiVersion : "54.0"
+    apiVersion : "56.0"
     userName: "(YOUR USER NAME)"
     password: "(YOUR USER PASSWORD)"
 #  - name: (ANY ORGANIZATION NAME 2)
 #    loginUrl: "https://login.salesforce.com"
-#    apiVersion : "54.0"
+#    apiVersion : "56.0"
 #    userName: "(YOUR USER NAME)"
 #    password: "(YOUR USER PASSWORD)"
 ```
@@ -109,15 +109,26 @@ $ node compare-permissions.js
 ```
 Execute logs are output to screen.
 ```
-2022/2/23 22:52:45 Login loginUrl:https://test.salesforce.com apiVersion:54.0 userName:(YOUR USER NAME)
-2022/2/23 22:52:59 [Profile:CustomAdmin] Retrieve base info.
-2022/2/23 22:52:59 [Profile:CustomAdmin] Retrieve object permissions.
-2022/2/23 22:52:59 [Profile:CustomAdmin] Retrieve field-level securities.
-2022/2/23 22:52:59 [Profile:CustomAdmin] Retrieve layout assignments.
-2022/2/23 22:52:59 [Profile:CustomAdmin] Retrieve record-type visibilities.
+[2022/11/27 19:11:22] Settings:
+[2022/11/27 19:11:22]   AppConfigPath:app_config.yaml
+[2022/11/27 19:11:22]   TemplateFilePath:template.xlsx
+[2022/11/27 19:11:22]   ResultFilePath:result.xlsx
+[2022/11/27 19:11:22]   ExcelFormatCopy:true
+[2022/11/27 19:11:22]   TargetProfiles/PermissionSets:CustomAdmin,CustomStandardUser,SalesUser(PS)
+[2022/11/27 19:11:22]   TargetSettingTypes:ObjectPermission,LayoutAssignment,RecordTypeVisibility,UserPermission,ApplicationVisibility,TabVisibility,ApexClassAccess,ApexPageAccess,CustomPermission,LoginIpRange,SessionSetting,PasswordPolicy
+[2022/11/27 19:11:22]   TargetObjects:undefined
+[2022/11/27 19:11:22] **** Start to retrieve ****
+[2022/11/27 19:11:22] OrgInfo:
+[2022/11/27 19:11:22]   Name:(YOUR ORG NAME)
+[2022/11/27 19:11:22]   LoginUrl:https://login.salesforce.com
+[2022/11/27 19:11:22]   ApiVersion:56.0
+[2022/11/27 19:11:22]   UserName:(YOUR USER NAME)
+[2022/11/27 19:11:26] [Profile:CustomAdmin] Retrieve base info.
+[2022/11/27 19:11:26] [Profile:CustomAdmin] Retrieve object permissions.
+[2022/11/27 19:11:26] [Profile:CustomAdmin] Retrieve layout assignments.
 :
-2022/2/23 22:53:15 Export to an excel file.
-2022/2/23 22:53:19 Done.
+[2022/11/27 19:11:49] Export to an excel file.
+[2022/11/27 19:12:00] Done.
 ```
 When complete the execution, the result excel file will be output. (default is "./result.xlsx")
 
@@ -130,10 +141,12 @@ usage: compare-permissions.js [-options]
 ````
 
 ## Note
-* Labels are output as much as possible, but some can not output.
-* If there are too many output rows, the result display in excel file will collapse. Please consider removing FieldLevelSecurity type, etc.
-* SessionSetting is output only some of the settings.
-* If the connected user's profile is set to High Assurance, the connection will fail.
+- Labels are output as much as possible, but some can not output.
+- If there are too many rows in the excel file, an error may occur when opening the excel file. In that case, Please try one of the following.
+  - Change the 'excelFormatCopy' setting in user_config.yaml to false.
+  - Create another user_config.yaml focused on 'settingType' that outputs a lot of data(e.g., FieldLevelSecurity).
+- SessionSetting is output only some of the settings.
+- If the connected user's profile is set to High Assurance, the connection will fail.
 
 ## License
 compare-permissions is licensed under the MIT license.

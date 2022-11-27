@@ -54,12 +54,12 @@ user_configを開き、組織名、ログインURL、ユーザ名、パスワー
 org:
   - name: (任意の組織名1)
     loginUrl: "https://test.salesforce.com"
-    apiVersion : "54.0"
+    apiVersion : "56.0"
     userName: "(ユーザ名)"
     password: "(パスワード)"
 #  - name: (任意の組織名2)
 #    loginUrl: "https://login.salesforce.com"
-#    apiVersion : "54.0"
+#    apiVersion : "56.0"
 #    userName: "(ユーザ名)"
 #    password: "(パスワード)"
 ```
@@ -110,15 +110,26 @@ $ node compare-permissions.js
 ```
 実行中のログが画面に出力されます。
 ```
-2022/2/23 22:52:45 Login loginUrl:https://test.salesforce.com apiVersion:54.0 userName:(YOUR USER NAME)
-2022/2/23 22:52:59 [Profile:カスタムシステム管理者] Retrieve base info.
-2022/2/23 22:52:59 [Profile:カスタムシステム管理者] Retrieve object permissions.
-2022/2/23 22:52:59 [Profile:カスタムシステム管理者] Retrieve field-level securities.
-2022/2/23 22:52:59 [Profile:カスタムシステム管理者] Retrieve layout assignments.
-2022/2/23 22:52:59 [Profile:カスタムシステム管理者] Retrieve record-type visibilities.
+[2022/11/27 19:55:24] Settings:
+[2022/11/27 19:55:24]   AppConfigPath:app_config_ja.yaml
+[2022/11/27 19:55:24]   TemplateFilePath:template_ja.xlsx
+[2022/11/27 19:55:24]   ResultFilePath:result.xlsx
+[2022/11/27 19:55:24]   ExcelFormatCopy:true
+[2022/11/27 19:55:24]   TargetProfiles/PermissionSets:カスタムシステム管理者,カスタム一般ユーザ,営業ユーザ(PS)
+[2022/11/27 19:55:24]   TargetSettingTypes:ObjectPermission,LayoutAssignment,RecordTypeVisibility,UserPermission,ApplicationVisibility,TabVisibility,ApexClassAccess,ApexPageAccess,CustomPermission,LoginIpRange,SessionSetting,PasswordPolicy
+[2022/11/27 19:55:24]   TargetObjects:undefined
+[2022/11/27 19:55:24] **** Start to retrieve ****
+[2022/11/27 19:55:24] OrgInfo:
+[2022/11/27 19:55:24]   Name:(YOUR ORG NAME)
+[2022/11/27 19:55:24]   LoginUrl:https://login.salesforce.com
+[2022/11/27 19:55:24]   ApiVersion:56.0
+[2022/11/27 19:55:24]   UserName:(YOUR USER NAME)
+[2022/11/27 19:55:32] [Profile:カスタムシステム管理者] Retrieve base info.
+[2022/11/27 19:55:32] [Profile:カスタムシステム管理者] Retrieve object permissions.
+[2022/11/27 19:55:32] [Profile:カスタムシステム管理者] Retrieve layout assignments.
 :
-2022/2/23 22:53:15 Export to an excel file.
-2022/2/23 22:53:19 Done.
+[2022/11/27 19:57:46] Export to an excel file.
+[2022/11/27 19:57:56] Done.
 ```
 実行が完了すれば、結果のExcelファイルが出力されます。(デフォルトは"./result.xlsx")
 
@@ -131,10 +142,12 @@ usage: compare-permissions.js [-options]
 ````
 
 ## 注意事項
-* 各ラベルは可能な限り出力していますが、一部のラベルは出力されていません。
-* Excelの出力行が大量になった場合は、Excelの表示が崩れます。その場合は、項目レベルセキュリティの出力を外すなど検討してください。
-* セッション設定は一部の設定のみを出力しています。
-* 接続ユーザのプロファイルに高保証が設定されている場合、接続に失敗します。
+- 各ラベルは可能な限り出力していますが、一部のラベルは出力されていません。
+- Excelの出力行が大量になった場合は、Excelを開く際にエラーが発生する場合があります。その場合は以下のいずれかを試してください。
+  - user_config.yamlの'excelFormatCopy'をfalseに変更する。
+  - 別のuser_config.yamlを作成し、出力行が多い'settingType'のみに絞ってください。(FieldLevelSecurityなど)
+- セッション設定は一部の設定のみを出力しています。
+- 接続ユーザのプロファイルに高保証が設定されている場合、接続に失敗します。
 
 ## ライセンス
 compare-permissionsはMITライセンスを適用しています。
