@@ -5,12 +5,14 @@ const xlsx = require('xlsx-populate');
 
 const METADATA_TRUE = 'true';
 const METADATA_FALSE = 'false';
-
 const LABEL_KEY_NAME = '0_Label';
 const PREFIX_PROFILE_NAME = '1_';
 const PREFIX_PERMISSION_SET_NAME = '2_';
-
 const ADD_INFO_HEADER = 'ADD_INFO:';
+const BOOLEAN_OUTPUT = '1';
+const BOOLEAN_NO_OUTPUT = '2';
+const BOOLEAN_OUTPUT_WITH_NA = '3';
+const STYLE_FILL = 'fill';
 
 const OBJECT_PERMISSION = 'ObjectPermission';
 const FIELD_LEVEL_SECURITY = 'FieldLevelSecurity';
@@ -26,27 +28,20 @@ const LOGIN_IP_RANGE = 'LoginIpRange';
 const SESSION_SETTING = 'SessionSetting';
 const PASSWORD_POLICY = 'PasswordPolicy';
 
-const BOOLEAN_OUTPUT = '1';
-const BOOLEAN_NO_OUTPUT = '2';
-const BOOLEAN_OUTPUT_WITH_NA = '3';
-
 const METADATA_TYPE_PROFILE = 'Profile';
 const METADATA_TYPE_PERMISSION_SET = 'PermissionSet';
 const METADATA_TYPE_SESSION_SETTING = 'ProfileSessionSetting';
 const METADATA_TYPE_PASSWORD_POLICY = 'ProfilePasswordPolicy';
-
 const KEY_BASE_INFO_NAME = 'name';
 const KEY_BASE_INFO_PERMISSION_SET = 'permissionSet';
 const KEY_BASE_INFO_CUSTOM = 'custom';
 const KEY_BASE_INFO_USER_LICENSE = 'userLicense';
 const KEY_BASE_INFO_DESCRIPTION = 'description';
-
 const KEY_SESSION_SETTING_FORCE_LOGOUT = 'forceLogout';
 const KEY_SESSION_SETTING_REQUIRED_SESSION_LEVEL = 'requiredSessionLevel';
 const KEY_SESSION_SETTING_SESSION_PERSISTENCE = 'sessionPersistence';
 const KEY_SESSION_SETTING_SESSION_TIMEOUT = 'sessionTimeout';
 const KEY_SESSION_SETTING_SESSION_TIMEOUT_WARNING = 'sessionTimeoutWarning';
-
 const KEY_PASSWORD_POLICY_FORGOT_PASSWORD_REDIRECT = 'forgotPasswordRedirect';
 const KEY_PASSWORD_POLICY_LOCKOUT_INTERVAL = 'lockoutInterval';
 const KEY_PASSWORD_POLICY_MAX_LOGIN_ATTEMPTS = 'maxLoginAttempts';
@@ -60,7 +55,6 @@ const KEY_PASSWORD_POLICY_PASSWORD_QUESTION = 'passwordQuestion';
 
 const DEFAULT_USER_CONFIG_PATH = './user_config.yaml';
 const DEFAULT_APP_CONFIG_PATH = './app_config.yaml';
-
 const COMMAND_OPTION_SILENT = '-s';
 const COMMAND_OPTION_HELP = '-h';
 const COMMAND_OPTION_CONFIG = '-c';
@@ -89,6 +83,21 @@ loadAppConfig();
 
 const userConfig = global.userConfig;
 const appConfig = global.appConfig;
+logging('Settings:');
+logging('  AppConfigPath:' + userConfig.appConfigPath);
+logging('  TemplateFilePath:' + userConfig.templateFilePath);
+logging('  ResultFilePath:' + userConfig.resultFilePath);
+logging('  ExcelFormatCopy:' + userConfig.excelFormatCopy);
+let target = '';
+userConfig.target.forEach(function(value) {
+  target += value.name;
+  if (value.ps) {target += '(PS)'}
+  target += ',';
+});
+target = target.replace(/,\s*$/, "");
+logging('  TargetProfiles/PermissionSets:' + target);
+logging('  TargetSettingTypes:' + userConfig.settingType);
+logging('  TargetObjects:' + userConfig.object);
 
 (async () => {
   const baseInfoMap = new Map();
@@ -107,13 +116,17 @@ const appConfig = global.appConfig;
   const sessionSettingMap = new Map();
   const passwordPolicyMap = new Map();
 
-  for (let orgCnt = 0; orgCnt < global.orgList.length; orgCnt++) {
-    const orgName = global.orgList[orgCnt].name;
-
-    let conn = new jsforce.Connection({ loginUrl: global.orgList[orgCnt].loginUrl, version: global.orgList[orgCnt].apiVersion });
+  for (const org of global.orgList) {
+    const orgName = org.name;
+    logging('**** Start to retrieve ****');
+    logging('OrgInfo:');
+    logging('  Name:' + org.name)
+    logging('  LoginUrl:' + org.loginUrl)
+    logging('  ApiVersion:' + org.apiVersion)
+    logging('  UserName:' + org.userName);
+    let conn = new jsforce.Connection({ loginUrl: org.loginUrl, version: org.apiVersion });
     // login to salesforce
-    logging('Login loginUrl:' + global.orgList[orgCnt].loginUrl + ' apiVersion:' + global.orgList[orgCnt].apiVersion + ' userName:' + global.orgList[orgCnt].userName);
-    await conn.login(global.orgList[orgCnt].userName, global.orgList[orgCnt].password, function (err, userInfo) {
+    await conn.login(org.userName, org.password, function (err, userInfo) {
       if (err) {
         console.error(err);
         process.exit(1);
@@ -164,7 +177,7 @@ const appConfig = global.appConfig;
     if (global.profileNameList.length !== 0 && isExecutable(SESSION_SETTING)) {
       const types = [{ type: METADATA_TYPE_SESSION_SETTING, folder: null }];
       const sessionSettingList = [];
-      await conn.metadata.list(types, global.orgList[orgCnt].apiVersion, function (err, metadataList) {
+      await conn.metadata.list(types, org.apiVersion, function (err, metadataList) {
         if (err) {
           console.error(err);
           process.exit(1);
@@ -172,8 +185,8 @@ const appConfig = global.appConfig;
         if (!Array.isArray(metadataList)) {
           metadataList = [metadataList];
         }
-        for (let metadataCnt = 0; metadataCnt < metadataList.length; metadataCnt++) {
-          sessionSettingList.push(metadataList[metadataCnt].fullName);
+        for (const metadata of metadataList) {
+          sessionSettingList.push(metadata.fullName);
         }
       });
 
@@ -204,7 +217,7 @@ const appConfig = global.appConfig;
     if (global.profileNameList.length !== 0 && isExecutable(PASSWORD_POLICY)) {
       const types = [{ type: METADATA_TYPE_PASSWORD_POLICY, folder: null }];
       const passwordPolicyList = [];
-      await conn.metadata.list(types, global.orgList[orgCnt].apiVersion, function (err, metadataList) {
+      await conn.metadata.list(types, org.apiVersion, function (err, metadataList) {
         if (err) {
           console.error(err);
           process.exit(1);
@@ -212,8 +225,8 @@ const appConfig = global.appConfig;
         if (!Array.isArray(metadataList)) {
           metadataList = [metadataList];
         }
-        for (let metadataCnt = 0; metadataCnt < metadataList.length; metadataCnt++) {
-          passwordPolicyList.push(metadataList[metadataCnt].fullName);
+        for (const metadata of metadataList) {
+          passwordPolicyList.push(metadata.fullName);
         }
       });
 
@@ -285,88 +298,86 @@ const appConfig = global.appConfig;
 
     await conn.logout(function(err) {
       if (err) { return console.error(err); }
-      logging('Logout userName:' + global.orgList[orgCnt].userName);
+      logging('Logout. userName:' + org.userName);
     });
 
   }
 
   // export to an excel file
-  await xlsx.fromFileAsync(userConfig.templateFilePath).then(workBook => {
-    logging('Export to an excel file.');
-    const xlsxSheet = workBook.sheet(0);
-    let xlsxCell;
-    const templateStyleList = getTemplateStyleList(xlsxSheet);
+  let workBook = await xlsx.fromFileAsync(userConfig.templateFilePath);
+  logging('Export to an excel file.');
+  const sheet = workBook.sheet(0);
+  let cell;
+  const templateStyleList = getTemplateStyleList(sheet);
 
-    let targetNameWorkX = appConfig.targetNamePosition[0];
-    const targetNameWorkY = appConfig.targetNamePosition[1];
-    let targetPermissionSetWorkX = appConfig.targetPermissionSetPosition[0];
-    const targetPermissionSetWorkY = appConfig.targetPermissionSetPosition[1];
-    let targetLicenseWorkX = appConfig.targetLicensePosition[0];
-    const targetLicenseWorkY = appConfig.targetLicensePosition[1];
-    let targetCustomWorkX = appConfig.targetCustomPosition[0];
-    const targetCustomWorkY = appConfig.targetCustomPosition[1];
+  let targetNameWorkX = appConfig.targetNamePosition[0];
+  const targetNameWorkY = appConfig.targetNamePosition[1];
+  let targetPermissionSetWorkX = appConfig.targetPermissionSetPosition[0];
+  const targetPermissionSetWorkY = appConfig.targetPermissionSetPosition[1];
+  let targetLicenseWorkX = appConfig.targetLicensePosition[0];
+  const targetLicenseWorkY = appConfig.targetLicensePosition[1];
+   let targetCustomWorkX = appConfig.targetCustomPosition[0];
+  const targetCustomWorkY = appConfig.targetCustomPosition[1];
 
-    // output base information for profile and permission set
-    for (let targetCnt = 0; targetCnt < global.targetNameList.length; targetCnt++) {
-      let color = appConfig.targetGroupColorDefault;
-      if (global.orgList.length >= 2) {
-        if (targetCnt % 2 === 0) {
-          color = appConfig.targetGroupColor1;
-        } else {
-          color = appConfig.targetGroupColor2;
-        }
+  // output base information for profile and permission set
+  for (let targetCnt = 0; targetCnt < global.targetNameList.length; targetCnt++) {
+    let targetName = global.targetNameList[targetCnt];
+    let color = appConfig.targetGroupColorDefault;
+    if (global.orgList.length >= 2) {
+      if (targetCnt % 2 === 0) {
+        color = appConfig.targetGroupColor1;
+      } else {
+        color = appConfig.targetGroupColor2;
       }
-      for (let orgCnt = 0; orgCnt < global.orgList.length; orgCnt++) {
-        const orgName = global.orgList[orgCnt].name;
+    }
+    for (const org of global.orgList) {
+      const key = org.name + '.' + targetName;
+      const value = baseInfoMap.get(key);
+      if (value) {
+        cell = sheet.row(targetNameWorkY).cell(targetNameWorkX);
+        cell.value(value.get(KEY_BASE_INFO_NAME) + '\n(' + org.name + ')');
+        cell.style(STYLE_FILL, color);
 
-        const key = orgName + '.' + global.targetNameList[targetCnt];
-        const value = baseInfoMap.get(key);
-        if (value) {
-          xlsxCell = xlsxSheet.row(targetNameWorkY).cell(targetNameWorkX);
-          xlsxCell.value(value.get(KEY_BASE_INFO_NAME) + '\n(' + orgName + ')');
-          xlsxCell.style('fill', color);
+        cell = sheet.row(targetPermissionSetWorkY).cell(targetPermissionSetWorkX);
+        cell.value(convertBoolean(value.get(KEY_BASE_INFO_PERMISSION_SET)));
+        cell.style(STYLE_FILL, color);
 
-          xlsxCell = xlsxSheet.row(targetPermissionSetWorkY).cell(targetPermissionSetWorkX);
-          xlsxCell.value(convertBoolean(value.get(KEY_BASE_INFO_PERMISSION_SET)));
-          xlsxCell.style('fill', color);
+        cell = sheet.row(targetLicenseWorkY).cell(targetLicenseWorkX);
+        cell.value(value.get(KEY_BASE_INFO_USER_LICENSE));
+        cell.style(STYLE_FILL, color);
 
-          xlsxCell = xlsxSheet.row(targetLicenseWorkY).cell(targetLicenseWorkX);
-          xlsxCell.value(value.get(KEY_BASE_INFO_USER_LICENSE));
-          xlsxCell.style('fill', color);
-
-          xlsxCell = xlsxSheet.row(targetCustomWorkY).cell(targetCustomWorkX);
-          xlsxCell.value(convertBoolean(value.get(KEY_BASE_INFO_CUSTOM)));
-          if (isTrue(value.get(KEY_BASE_INFO_PERMISSION_SET))) {
-            xlsxCell.style('fill', appConfig.notApplicableColor);
-          } else {
-            xlsxCell.style('fill', color);
-          }
+        cell = sheet.row(targetCustomWorkY).cell(targetCustomWorkX);
+        cell.value(convertBoolean(value.get(KEY_BASE_INFO_CUSTOM)));
+        if (isTrue(value.get(KEY_BASE_INFO_PERMISSION_SET))) {
+          cell.style(STYLE_FILL, appConfig.notApplicableColor);
         } else {
-          xlsxCell = xlsxSheet.row(targetNameWorkY).cell(targetNameWorkX);
-          xlsxCell.value(global.targetNameList[targetCnt].slice(2) + '\n(' + orgName + ')');
-          xlsxCell.style('fill', appConfig.notApplicableColor);
-
-          xlsxCell = xlsxSheet.row(targetPermissionSetWorkY).cell(targetPermissionSetWorkX);
-          if (global.targetNameList[targetCnt].slice(0, 2) === PREFIX_PERMISSION_SET_NAME) {
-            xlsxCell.value(convertBoolean(METADATA_TRUE));
-          } else {
-            xlsxCell.value(convertBoolean(METADATA_FALSE));
-          }
-          xlsxCell.style('fill', appConfig.notApplicableColor);
-
-          xlsxCell = xlsxSheet.row(targetLicenseWorkY).cell(targetLicenseWorkX);
-          xlsxCell.value('-');
-          xlsxCell.style('fill', appConfig.notApplicableColor);
-
-          xlsxCell = xlsxSheet.row(targetCustomWorkY).cell(targetCustomWorkX);
-          xlsxCell.value('-');
-          xlsxCell.style('fill', appConfig.notApplicableColor);
+          cell.style(STYLE_FILL, color);
         }
-        targetNameWorkX++;
-        targetPermissionSetWorkX++;
-        targetLicenseWorkX++;
-        targetCustomWorkX++;
+      } else {
+        cell = sheet.row(targetNameWorkY).cell(targetNameWorkX);
+        cell.value(targetName.slice(2) + '\n(' + org.name + ')');
+        cell.style(STYLE_FILL, appConfig.notApplicableColor);
+
+        cell = sheet.row(targetPermissionSetWorkY).cell(targetPermissionSetWorkX);
+        if (targetName.slice(0, 2) === PREFIX_PERMISSION_SET_NAME) {
+          cell.value(convertBoolean(METADATA_TRUE));
+        } else {
+          cell.value(convertBoolean(METADATA_FALSE));
+        }
+        cell.style(STYLE_FILL, appConfig.notApplicableColor);
+
+        cell = sheet.row(targetLicenseWorkY).cell(targetLicenseWorkX);
+        cell.value('-');
+        cell.style(STYLE_FILL, appConfig.notApplicableColor);
+
+        cell = sheet.row(targetCustomWorkY).cell(targetCustomWorkX);
+        cell.value('-');
+        cell.style(STYLE_FILL, appConfig.notApplicableColor);
       }
+      targetNameWorkX++;
+      targetPermissionSetWorkX++;
+      targetLicenseWorkX++;
+      targetCustomWorkX++;
     }
 
     const typeWorkX = appConfig.typePosition[0];
@@ -460,93 +471,99 @@ const appConfig = global.appConfig;
 
       for (const key of sortedMap.keys()) {
         if (userConfig.excelFormatCopy === undefined || userConfig.excelFormatCopy === true) {
-          putTemplateStyle(xlsxSheet, templateStyleList, resultWorkY);
+          putTemplateStyle(sheet, templateStyleList, resultWorkY);
         }
         if (!paintedFirstframe) {
-          putFirstFrameStyle(xlsxSheet, templateStyleList, resultWorkY);
+          putFirstFrameStyle(sheet, templateStyleList, resultWorkY);
           paintedFirstframe = true;
         }
-        xlsxCell = xlsxSheet.row(typeWorkY).cell(typeWorkX);
+        cell = sheet.row(typeWorkY).cell(typeWorkX);
         const settingTypeLabel = settingTypeLabelMap[settingType];
         if (settingTypeLabel !== undefined) {
-          xlsxCell.value(settingTypeLabel);
+          cell.value(settingTypeLabel);
         } else {
-          xlsxCell.value(settingType);
+          cell.value(settingType);
         }
-        xlsxCell = xlsxSheet.row(nameWorkY).cell(nameWorkX);
+        cell = sheet.row(nameWorkY).cell(nameWorkX);
         const nameRegex = new RegExp('^(.+?)( ' + ADD_INFO_HEADER + '(.+?))*$').exec(key);
-        xlsxCell.value(nameRegex[1]);
-        xlsxCell = xlsxSheet.row(secondNameWorkY).cell(secondNameWorkX);
+        cell.value(nameRegex[1]);
+        cell = sheet.row(secondNameWorkY).cell(secondNameWorkX);
         if (nameRegex[3]) {
-          xlsxCell.value(nameRegex[3]);
+          cell.value(nameRegex[3]);
         }
 
         const valueMap = metadataMap.get(key);
         if (valueMap.has(LABEL_KEY_NAME)) {
           const value = valueMap.get(LABEL_KEY_NAME);
-          xlsxCell = xlsxSheet.row(labelWorkY).cell(labelWorkX);
-          xlsxCell.value(value);
+          cell = sheet.row(labelWorkY).cell(labelWorkX);
+          cell.value(value);
         }
         resultWorkX = appConfig.resultPosition[0];
-        for (let targetCnt = 0; targetCnt < global.targetNameList.length; targetCnt++) {
+        for (const targetName of global.targetNameList) {
           let beforeValue;
+          let value;
           for (let orgCnt = 0; orgCnt < global.orgList.length; orgCnt++) {
-            const orgName = global.orgList[orgCnt].name;
-
-            xlsxCell = xlsxSheet.row(resultWorkY).cell(resultWorkX);
-            if (valueMap.has(orgName + '.' + global.targetNameList[targetCnt])) {
-              const value = valueMap.get(orgName + '.' + global.targetNameList[targetCnt]);
+            const org = global.orgList[orgCnt];
+            cell = sheet.row(resultWorkY).cell(resultWorkX);
+            const key = org.name + '.' + targetName;
+            if (valueMap.has(key)) {
+              value = valueMap.get(key);
               if (value !== undefined) {
                 if (fullAuthorityValue.length > 0 && value.match(new RegExp(fullAuthorityValue))) {
-                  xlsxCell.style('fill', appConfig.fullAuthorityColor);
+                  cell.style(STYLE_FILL, appConfig.fullAuthorityColor);
                 } else if (partialAuthorityValue.length > 0 && value.match(new RegExp(partialAuthorityValue))) {
-                  xlsxCell.style('fill', appConfig.partialAuthorityColor);
+                  cell.style(STYLE_FILL, appConfig.partialAuthorityColor);
                 } else if (noAuthorityValue.length > 0 && value.match(new RegExp(noAuthorityValue))) {
-                  xlsxCell.style('fill', appConfig.noAuthorityColor);
+                  cell.style(STYLE_FILL, appConfig.noAuthorityColor);
                 } else if (value.length === 0 && fillsBlankWithNoAuthorityColor) {
-                  xlsxCell.style('fill', appConfig.noAuthorityColor);
+                  cell.style(STYLE_FILL, appConfig.noAuthorityColor);
                 }
               }
               if (booleanBehavior !== BOOLEAN_NO_OUTPUT) {
-                xlsxCell.value(convertBoolean(value));
+                cell.value(convertBoolean(value));
               } else {
-                xlsxCell.value(value);
+                cell.value(value);
               }
               if (orgCnt !== 0) {
                 if (value !== beforeValue) {
-                  xlsxCell = xlsxSheet.row(resultWorkY).cell(appConfig.orgDifferentXPosition);
-                  xlsxCell.value(appConfig.orgDifferentLabel);
+                  cell = sheet.row(resultWorkY).cell(appConfig.orgDifferentXPosition);
+                  cell.value(appConfig.orgDifferentLabel);
                 }
                 beforeValue = value;
               } else {
                 beforeValue = value;
               }
             } else {
-              if (notApplicablePermmisonSet && global.targetNameList[targetCnt].indexOf(PREFIX_PERMISSION_SET_NAME) === 0) {
-                xlsxCell.value(appConfig.notApplicableLabel);
-                xlsxCell.style('fill', appConfig.notApplicableColor);
-              } else if (settingType === FIELD_LEVEL_SECURITY) {
-                if (fillsBlankWithNoAuthorityColor) {
-                  xlsxCell.style('fill', appConfig.noAuthorityColor);
+              value = null;
+              if (baseInfoMap.has(key)) {
+                if (notApplicablePermmisonSet && targetName.indexOf(PREFIX_PERMISSION_SET_NAME) === 0) {
+                  cell.value(appConfig.notApplicableLabel);
+                  cell.style(STYLE_FILL, appConfig.notApplicableColor);
+                } else if (settingType === FIELD_LEVEL_SECURITY) {
+                  if (fillsBlankWithNoAuthorityColor) {
+                    cell.style(STYLE_FILL, appConfig.noAuthorityColor);
+                  }
+                } else if (booleanBehavior === BOOLEAN_OUTPUT) {
+                  cell.value(convertBoolean(METADATA_FALSE));
+                  cell.style(STYLE_FILL, appConfig.noAuthorityColor);
+                } else if (booleanBehavior === BOOLEAN_OUTPUT_WITH_NA) {
+                  cell.value(appConfig.notApplicableLabel);
+                  cell.style(STYLE_FILL, appConfig.noAuthorityColor);
+                } else if (fillsBlankWithNoAuthorityColor) {
+                  cell.style(STYLE_FILL, appConfig.noAuthorityColor);
                 }
-              } else if (booleanBehavior === BOOLEAN_OUTPUT) {
-                xlsxCell.value(convertBoolean(METADATA_FALSE));
-                xlsxCell.style('fill', appConfig.noAuthorityColor);
-              } else if (booleanBehavior === BOOLEAN_OUTPUT_WITH_NA) {
-                xlsxCell.value(appConfig.notApplicableLabel);
-                xlsxCell.style('fill', appConfig.noAuthorityColor);
-              } else if (fillsBlankWithNoAuthorityColor) {
-                xlsxCell.style('fill', appConfig.noAuthorityColor);
+              } else {
+                cell.style(STYLE_FILL, appConfig.notApplicableColor);
               }
               if (orgCnt !== 0) {
                 if (value !== beforeValue) {
-                  xlsxCell = xlsxSheet.row(resultWorkY).cell(appConfig.orgDifferentXPosition);
-                  xlsxCell.value(appConfig.orgDifferentLabel);
+                  cell = sheet.row(resultWorkY).cell(appConfig.orgDifferentXPosition);
+                  cell.value(appConfig.orgDifferentLabel);
                 }
                 beforeValue = value;
               } else {
                 beforeValue = value;
-              }
+              }  
             }
             resultWorkX++;
           }
@@ -559,14 +576,13 @@ const appConfig = global.appConfig;
       }
     });
 
-    workBook.toFileAsync(userConfig.resultFilePath).then(result => { });
-    logging('Done.');
-  });
+  }
+  await workBook.toFileAsync(userConfig.resultFilePath);
+  logging('Done.');
 })();
 
 function retrieveBaseInfo(metadataList, orgName, isProfile, baseInfoMap) {
-  for (let metadataCnt = 0; metadataCnt < metadataList.length; metadataCnt++) {
-    const metadata = metadataList[metadataCnt];
+  for (const metadata of metadataList) {
     loggingWithTargetName(metadata, isProfile, 'Retrieve base info.');
     const valueMap = new Map();
 
@@ -594,8 +610,7 @@ function retrieveObjectPermissions(metadataList, orgName, isProfile, objectPermi
   }
   const targetObjectSet = global.targetObjectSet;
 
-  for (let metadataCnt = 0; metadataCnt < metadataList.length; metadataCnt++) {
-    const metadata = metadataList[metadataCnt];
+  for (const metadata of metadataList) {
     loggingWithTargetName(metadata, isProfile, 'Retrieve object permissions.');
 
     let objectPermissions = metadata.objectPermissions;
@@ -633,8 +648,7 @@ function retrievefieldLevelSecurities(metadataList, orgName, isProfile, fieldLev
   }
   const targetObjectSet = global.targetObjectSet;
 
-  for (let metadataCnt = 0; metadataCnt < metadataList.length; metadataCnt++) {
-    const metadata = metadataList[metadataCnt];
+  for (const metadata of metadataList) {
     loggingWithTargetName(metadata, isProfile, 'Retrieve field-level securities.');
     let fieldPermissions = metadata.fieldPermissions;
     if (!Array.isArray(fieldPermissions)) {
@@ -666,8 +680,7 @@ function retrieveLayoutAssignments(metadataList, orgName, isProfile, layoutAssig
   if (!isExecutable(LAYOUT_ASSIGNMENT)) {
     return;
   }
-  for (let metadataCnt = 0; metadataCnt < metadataList.length; metadataCnt++) {
-    const metadata = metadataList[metadataCnt];
+  for (const metadata of metadataList) {
     loggingWithTargetName(metadata, isProfile, 'Retrieve layout assignments.');
     let layoutAssignments = metadata.layoutAssignments;
     if (!Array.isArray(layoutAssignments)) {
@@ -699,8 +712,7 @@ function retrieveRecordTypeVisibilities(metadataList, orgName, isProfile, record
   if (!isExecutable(RECORD_TYPE_VISIBILITY)) {
     return;
   }
-  for (let metadataCnt = 0; metadataCnt < metadataList.length; metadataCnt++) {
-    const metadata = metadataList[metadataCnt];
+  for (const metadata of metadataList) {
     loggingWithTargetName(metadata, isProfile, 'Retrieve record-type visibilities.');
     let recordTypeVisibilities = metadata.recordTypeVisibilities;
     if (!Array.isArray(recordTypeVisibilities)) {
@@ -765,8 +777,7 @@ function retrieveApexClassAccesses(metadataList, orgName, isProfile, apexClassAc
   if (!isExecutable(APEX_CLASS_ACCESS)) {
     return;
   }
-  for (let metadataCnt = 0; metadataCnt < metadataList.length; metadataCnt++) {
-    const metadata = metadataList[metadataCnt];
+  for (const metadata of metadataList) {
     loggingWithTargetName(metadata, isProfile, 'Retrieve apex class accesses.');
     let classAccesses = metadata.classAccesses;
     if (!Array.isArray(classAccesses)) {
@@ -790,8 +801,7 @@ function retrieveApexPageAccesses(metadataList, orgName, isProfile, apexPageAcce
   if (!isExecutable(APEX_PAGE_ACCESS)) {
     return;
   }
-  for (let metadataCnt = 0; metadataCnt < metadataList.length; metadataCnt++) {
-    const metadata = metadataList[metadataCnt];
+  for (const metadata of metadataList) {
     loggingWithTargetName(metadata, isProfile, 'Retrieve apex page accesses.');
     let pageAccesses = metadata.pageAccesses;
     if (!Array.isArray(pageAccesses)) {
@@ -816,8 +826,7 @@ function retrieveUserPermissions(metadataList, orgName, isProfile, userPermissio
     return;
   }
 
-  for (let metadataCnt = 0; metadataCnt < metadataList.length; metadataCnt++) {
-    const metadata = metadataList[metadataCnt];
+  for (const metadata of metadataList) {
     loggingWithTargetName(metadata, isProfile, 'Retrieve user permissions.');
     let userPermissions = metadata.userPermissions;
     if (!Array.isArray(userPermissions)) {
@@ -842,8 +851,7 @@ function retrieveApplicationVisibilities(metadataList, orgName, isProfile, appli
     return;
   }
   const appConfig = global.appConfig;
-  for (let metadataCnt = 0; metadataCnt < metadataList.length; metadataCnt++) {
-    const metadata = metadataList[metadataCnt];
+  for (const metadata of metadataList) {
     loggingWithTargetName(metadata, isProfile, 'Retrieve application visibilities.');
     let applicationVisibilities = metadata.applicationVisibilities;
     if (!Array.isArray(applicationVisibilities)) {
@@ -877,8 +885,7 @@ function retrieveTabVisibilities(metadataList, orgName, isProfile, tabVisibility
     return;
   }
   const appConfig = global.appConfig;
-  for (let metadataCnt = 0; metadataCnt < metadataList.length; metadataCnt++) {
-    const metadata = metadataList[metadataCnt];
+  for (const metadata of metadataList) {
     loggingWithTargetName(metadata, isProfile, 'Retrieve tab visibilities.');
     let tabVisibilities;
     if (isProfile) {
@@ -922,8 +929,7 @@ function retrieveLoginIpRanges(metadataList, orgName, isProfile, loginIpRangeMap
   if (!isExecutable(LOGIN_IP_RANGE)) {
     return;
   }
-  for (let metadataCnt = 0; metadataCnt < metadataList.length; metadataCnt++) {
-    const metadata = metadataList[metadataCnt];
+  for (const metadata of metadataList) {
     loggingWithTargetName(metadata, isProfile, 'Retrieve login IP ranges.');
     let loginIpRanges = metadata.loginIpRanges;
     if (!Array.isArray(loginIpRanges)) {
@@ -948,8 +954,7 @@ function retrieveCustomPermissions(metadataList, orgName, isProfile, customPermi
   if (!isExecutable(CUSTOM_PERMISSION)) {
     return;
   }
-  for (let metadataCnt = 0; metadataCnt < metadataList.length; metadataCnt++) {
-    const metadata = metadataList[metadataCnt];
+  for (const metadata of metadataList) {
     loggingWithTargetName(metadata, isProfile, 'Retrieve custom permissions.');
     let customPermissions = metadata.customPermissions;
     if (!Array.isArray(customPermissions)) {
@@ -974,23 +979,22 @@ function retrieveSessionSetting(metadataList, orgName, profileName, isProfile, s
     return;
   }
   const key = orgName + '.' + PREFIX_PROFILE_NAME + profileName;
-  const keyArray = [
+  const settingNameArray = [
     KEY_SESSION_SETTING_FORCE_LOGOUT,
     KEY_SESSION_SETTING_REQUIRED_SESSION_LEVEL,
     KEY_SESSION_SETTING_SESSION_PERSISTENCE,
     KEY_SESSION_SETTING_SESSION_TIMEOUT,
     KEY_SESSION_SETTING_SESSION_TIMEOUT_WARNING
   ];
-  for (let metadataCnt = 0; metadataCnt < metadataList.length; metadataCnt++) {
-    const metadata = metadataList[metadataCnt];
+  for (const metadata of metadataList) {
     loggingWithTargetName(metadata, isProfile, 'Retrieve session setting.');
 
-    for (let i = 0; i < keyArray.length; i++) {
-      if (!sessionSettingMap.has(keyArray[i])) {
-        sessionSettingMap.set(keyArray[i], new Map());
+    for (const settingName of settingNameArray) {
+      if (!sessionSettingMap.has(settingName)) {
+        sessionSettingMap.set(settingName, new Map());
       }
-      const valueMap = sessionSettingMap.get(keyArray[i]);
-      valueMap.set(key, metadata[keyArray[i]]);
+      const valueMap = sessionSettingMap.get(settingName);
+      valueMap.set(key, metadata[settingName]);
     }
   }
 }
@@ -1000,7 +1004,7 @@ function retrievePasswordPolicy(metadataList, orgName, profileName, isProfile, p
     return;
   }
   const key = orgName + '.' + PREFIX_PROFILE_NAME + profileName;
-  const keyArray = [
+  const settingNameArray = [
     KEY_PASSWORD_POLICY_FORGOT_PASSWORD_REDIRECT,
     KEY_PASSWORD_POLICY_LOCKOUT_INTERVAL,
     KEY_PASSWORD_POLICY_MAX_LOGIN_ATTEMPTS,
@@ -1012,17 +1016,16 @@ function retrievePasswordPolicy(metadataList, orgName, profileName, isProfile, p
     KEY_PASSWORD_POLICY_PASSWORD_HISTORY,
     KEY_PASSWORD_POLICY_PASSWORD_QUESTION
   ];
-  for (let metadataCnt = 0; metadataCnt < metadataList.length; metadataCnt++) {
-    const metadata = metadataList[metadataCnt];
+  for (const metadata of metadataList) {
     loggingWithTargetName(metadata, isProfile, 'Retrieve password policies.');
 
-    for (let i = 0; i < keyArray.length; i++) {
-      if (!passwordPolicyMap.has(keyArray[i])) {
-        passwordPolicyMap.set(keyArray[i], new Map());
+    for (const settingName of settingNameArray) {
+      if (!passwordPolicyMap.has(settingName)) {
+        passwordPolicyMap.set(settingName, new Map());
       }
-      const valueMap = passwordPolicyMap.get(keyArray[i]);
-      let value = metadata[keyArray[i]];
-      if (keyArray[i] === KEY_PASSWORD_POLICY_PASSWORD_COMPLEXITY) {
+      const valueMap = passwordPolicyMap.get(settingName);
+      let value = metadata[settingName];
+      if (settingName === KEY_PASSWORD_POLICY_PASSWORD_COMPLEXITY) {
         value = appConfig.passwordComplexityLabel[value];
       }
       valueMap.set(key, value);
@@ -1345,7 +1348,7 @@ function loadYamlFile(filename) {
   const fs = require('fs');
   const yaml = require('js-yaml');
   if (!fs.existsSync(filename)) {
-    logging('[Error]File not found. Path : ' + filename);
+    console.error('File not found. filePath: ' + filename);
     process.exit(1);
   }
   const yamlText = fs.readFileSync(filename, 'utf8');
@@ -1375,13 +1378,13 @@ function loadUserConfig(userConfigPath) {
   const targetNameList = [];
   const profileNameList = [];
   const permissionSetNameList = [];
-  for (let i = 0; i < config.target.length; i++) {
-    if (config.target[i].ps) {
-      permissionSetNameList.push(config.target[i].name);
-      targetNameList.push(PREFIX_PERMISSION_SET_NAME + config.target[i].name);
+  for (const target of config.target) {
+    if (target.ps) {
+      permissionSetNameList.push(target.name);
+      targetNameList.push(PREFIX_PERMISSION_SET_NAME + target.name);
     } else {
-      profileNameList.push(config.target[i].name);
-      targetNameList.push(PREFIX_PROFILE_NAME + config.target[i].name);
+      profileNameList.push(target.name);
+      targetNameList.push(PREFIX_PROFILE_NAME + target.name);
     }
   }
   global.targetNameList = targetNameList;
@@ -1407,13 +1410,13 @@ function loadUserConfig(userConfigPath) {
   global.targetObjectSet = targetObjectSet;
 
   const orgList = [];
-  for (let i = 0; i < config.org.length; i++) {
+  for (const org of config.org) {
     const orgInfo = new _orgInfo(
-      config.org[i].name,
-      config.org[i].loginUrl,
-      config.org[i].apiVersion,
-      config.org[i].userName,
-      config.org[i].password
+      org.name,
+      org.loginUrl,
+      org.apiVersion,
+      org.userName,
+      org.password
     );
     orgList.push(orgInfo);
   }
@@ -1428,12 +1431,12 @@ function _orgInfo(name, loginUrl, apiVersion, userName, password) {
   this.password = password;
 }
 
-function getTemplateStyleList(xlsxSheet) {
-  const endColNum = xlsxSheet.usedRange().endCell().columnNumber();
+function getTemplateStyleList(sheet) {
+  const endColNum = sheet.usedRange().endCell().columnNumber();
   const xlsxTemplateStyleList = [];
   const appConfig = global.appConfig;
   for (let i = 1; i <= endColNum; i++) {
-    const style = xlsxSheet.cell(appConfig.resultPosition[1], i).style([
+    const style = sheet.cell(appConfig.resultPosition[1], i).style([
       'bold',
       'italic',
       'underline',
@@ -1469,17 +1472,17 @@ function getTemplateStyleList(xlsxSheet) {
   return xlsxTemplateStyleList;
 }
 
-function putTemplateStyle(xlsxSheet, xlsxTemplateStyleList, cellY) {
+function putTemplateStyle(sheet, xlsxTemplateStyleList, cellY) {
   for (let i = 0; i < xlsxTemplateStyleList.length; i++) {
-    const cell = xlsxSheet.cell(cellY, i + 1);
+    const cell = sheet.cell(cellY, i + 1);
     cell.style(xlsxTemplateStyleList[i]);
   }
 }
 
-function putFirstFrameStyle(xlsxSheet, xlsxTemplateStyleList, cellY) {
+function putFirstFrameStyle(sheet, xlsxTemplateStyleList, cellY) {
   if (global.appConfig.boundaryTopBorderOn === true) {
     for (let i = 0; i < xlsxTemplateStyleList.length; i++) {
-      const cell = xlsxSheet.cell(cellY, i + 1);
+      const cell = sheet.cell(cellY, i + 1);
       cell.style('topBorder', 'true');
       cell.style('topBorderColor', global.appConfig.boundaryTopBorderColor);
       cell.style('topBorderStyle', global.appConfig.boundaryTopBorderStyle);
@@ -1536,6 +1539,17 @@ function loggingWithTargetName(metadata, isProfile, message) {
 function _logging(message) {
   if (global.enabledLogging) {
     const nowDate = new Date();
-    console.log(nowDate.toLocaleString() + ' ' + message);
+    console.log('[' + getFormattedDateTime(nowDate) + '] ' + message);
   }
+}
+
+function getFormattedDateTime(date) {
+  let dateString =
+    date.getFullYear() + '/' +
+    ('0' + (date.getMonth() + 1)).slice(-2) + '/' +
+    ('0' + date.getDate()).slice(-2) + ' ' +
+    ('0' + date.getHours()).slice(-2) + ':' +
+    ('0' + date.getMinutes()).slice(-2) + ':' +
+    ('0' + date.getSeconds()).slice(-2);
+  return dateString;
 }
