@@ -1,5 +1,4 @@
 /node_modules/
 result.xlsx
-user_config_test.yaml
-user_config_test_ja.yaml
+user_config_*.yaml
 backup

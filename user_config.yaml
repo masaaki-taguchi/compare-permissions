@@ -15,12 +15,12 @@ excelFormatCopy: true
 org:
   - name: (ANY ORGANIZATION NAME 1)
     loginUrl: "https://test.salesforce.com"
-    apiVersion : "54.0"
+    apiVersion : "56.0"
     userName: "(YOUR USER NAME)"
     password: "(YOUR USER PASSWORD)"
 #  - name: (ANY ORGANIZATION NAME 2)
 #    loginUrl: "https://login.salesforce.com"
-#    apiVersion : "54.0"
+#    apiVersion : "56.0"
 #    userName: "(YOUR USER NAME)"
 #    password: "(YOUR USER PASSWORD)"
 
@@ -56,7 +56,7 @@ target:
 #
 settingType: [
   "ObjectPermission",
-  "FieldLevelSecurity",
+#  "FieldLevelSecurity",
   "LayoutAssignment",
   "RecordTypeVisibility",
   "UserPermission",
@@ -75,10 +75,10 @@ settingType: [
 #
 # If this parameter is not defined, All objects included in the profiles/permission sets are targets.
 #
-object: [
-  Account, 
-  Contact, 
-  Opportunity, 
-  User, 
-]
+#object: [
+#  Account, 
+#  Contact, 
+#  Opportunity, 
+#  User, 
+#]
 

@@ -15,12 +15,12 @@ excelFormatCopy: true
 org:
   - name: (任意の組織名1)
     loginUrl: "https://test.salesforce.com"
-    apiVersion : "54.0"
+    apiVersion : "56.0"
     userName: "(ユーザ名)"
     password: "(パスワード)"
 #  - name: (任意の組織名2)
 #    loginUrl: "https://login.salesforce.com"
-#    apiVersion : "54.0"
+#    apiVersion : "56.0"
 #    userName: "(ユーザ名)"
 #    password: "(パスワード)"
 
@@ -56,7 +56,7 @@ target:
 #
 settingType: [
   "ObjectPermission",
-  "FieldLevelSecurity",
+#  "FieldLevelSecurity",
   "LayoutAssignment",
   "RecordTypeVisibility",
   "UserPermission",
@@ -75,10 +75,10 @@ settingType: [
 #
 # このパラメータが無い場合は、プロファイル/権限セットに含まれる全オブジェクトを対象とする。
 #
-object: [
-  Account, 
-  Contact, 
-  Opportunity, 
-  User, 
-]
+#object: [
+#  Account, 
+#  Contact, 
+#  Opportunity, 
+#  User, 
+#]
 
