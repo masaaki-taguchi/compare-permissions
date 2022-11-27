@@ -1,4 +1,13 @@
 {
+  "name": "compare-permissions",
+  "version": "1.0.3",
+  "description": "Salesforce's profile and permission set settings exporter to Excel and compare",
+  "main": "compare-permissions.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Masaaki Taguchi",
+  "license": "MIT",
   "dependencies": {
     "js-yaml": "^3.14.0",
     "jsforce": "^1.11.0",
