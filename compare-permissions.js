@@ -1047,13 +1047,17 @@ async function getPermissionSetAPINames(conn) {
   condition += ')';
 
   const recordList = [];
-  await conn.query('SELECT Id, Name, Label FROM PermissionSet WHERE Label IN ' + condition)
+  await conn.query('SELECT Id, Name, Label, NamespacePrefix FROM PermissionSet WHERE Label IN ' + condition)
     .on('record', function (record) { recordList.push(record); })
     .on('error', function (err) { console.error(err); })
     .run({ autoFetch: true });
   const recordMap = new Map();
   for (const i in recordList) {
-    recordMap.set(recordList[i].Label, recordList[i].Name);
+    if (recordList[i].NamespacePrefix) {
+      recordMap.set(recordList[i].Label, recordList[i].NamespacePrefix + '__' + recordList[i].Name);
+    } else {
+      recordMap.set(recordList[i].Label, recordList[i].Name);
+    }
   }
 
   const permissionSetAPINameList = [];
