@@ -24,7 +24,10 @@ The following settings are supported.
 * Apex Class Access
 * Visualforce Page Access
 * Custom Permission
+* Custom Metadata Type Access
+* Custom Setting Access
 * Login IP Range
+* Login Hour
 * Session Setting
 * Password Policy
 
@@ -52,12 +55,12 @@ Open user_config.yaml and edit the organization name, login URL, user name, and 
 org:
   - name: (ANY ORGANIZATION NAME 1)
     loginUrl: "https://test.salesforce.com"
-    apiVersion : "56.0"
+    apiVersion : "62.0"
     userName: "(YOUR USER NAME)"
     password: "(YOUR USER PASSWORD)"
 #  - name: (ANY ORGANIZATION NAME 2)
 #    loginUrl: "https://login.salesforce.com"
-#    apiVersion : "56.0"
+#    apiVersion : "62.0"
 #    userName: "(YOUR USER NAME)"
 #    password: "(YOUR USER PASSWORD)"
 ```
@@ -84,7 +87,10 @@ settingType: [
   "ApexClassAccess",
   "ApexPageAccess",
   "CustomPermission",
+  "CustomMetadataTypeAccess",
+  "CustomSettingAccess",
   "LoginIpRange",
+  "LoginHour",
   "SessionSetting",
   "PasswordPolicy"
 ]
@@ -109,26 +115,49 @@ $ node compare-permissions.js
 ```
 Execute logs are output to screen.
 ```
-[2022/11/27 19:11:22] Settings:
-[2022/11/27 19:11:22]   AppConfigPath:app_config.yaml
-[2022/11/27 19:11:22]   TemplateFilePath:template.xlsx
-[2022/11/27 19:11:22]   ResultFilePath:result.xlsx
-[2022/11/27 19:11:22]   ExcelFormatCopy:true
-[2022/11/27 19:11:22]   TargetProfiles/PermissionSets:CustomAdmin,CustomStandardUser,SalesUser(PS)
-[2022/11/27 19:11:22]   TargetSettingTypes:ObjectPermission,LayoutAssignment,RecordTypeVisibility,UserPermission,ApplicationVisibility,TabVisibility,ApexClassAccess,ApexPageAccess,CustomPermission,LoginIpRange,SessionSetting,PasswordPolicy
-[2022/11/27 19:11:22]   TargetObjects:undefined
-[2022/11/27 19:11:22] **** Start to retrieve ****
-[2022/11/27 19:11:22] OrgInfo:
-[2022/11/27 19:11:22]   Name:(YOUR ORG NAME)
-[2022/11/27 19:11:22]   LoginUrl:https://login.salesforce.com
-[2022/11/27 19:11:22]   ApiVersion:56.0
-[2022/11/27 19:11:22]   UserName:(YOUR USER NAME)
-[2022/11/27 19:11:26] [Profile:CustomAdmin] Retrieve base info.
-[2022/11/27 19:11:26] [Profile:CustomAdmin] Retrieve object permissions.
-[2022/11/27 19:11:26] [Profile:CustomAdmin] Retrieve layout assignments.
+[Settings]
+  AppConfigPath: app_config.yaml
+  TemplateFilePath: template.xlsx
+  ResultFilePath: result.xlsx
+  TargetProfiles/PermissionSets:
+    CustomAdmin
+    CustomStandardUser
+    SalesUser(PS)
+  TargetSettingTypes:
+    ObjectPermission
+    FieldLevelSecurity
+    :
+    PasswordPolicy
+  TargetObjects:
+    Account
+    Contact
+    Opportunity
+    User
+
+[OrgInfo]
+  Name:(YOUR ORG NAME)
+  LoginUrl:https://login.salesforce.com
+  ApiVersion:62.0
+  UserName:(YOUR USER NAME)
+[Processing profile: CustomAdmin]
+  Retrieving base info...
+  Retrieving object permissions...
+  Retrieving field-level security...
+  Retrieving layout assignments...
+  Retrieving record-type visibilities...
+  Retrieving apex class accesses...
+  Retrieving apex page accesses...
+  Retrieving user permissions...
+  Retrieving application visibilities...
+  Retrieving tab visibilities...
+  Retrieving login IP ranges...
+  Retrieving login hours...
+  Retrieving custom permissions...
+  Retrieving custom metadata type accesses...
+  Retrieving custom setting accesses...
 :
-[2022/11/27 19:11:49] Export to an excel file.
-[2022/11/27 19:12:00] Done.
+[Exporting to an Excel file: result.xlsx]
+Done.
 ```
 When complete the execution, the result excel file will be output. (default is "./result.xlsx")
 
@@ -142,9 +171,6 @@ usage: compare-permissions.js [-options]
 
 ## Note
 - Labels are output as much as possible, but some can not output.
-- If there are too many rows in the excel file, an error may occur when opening the excel file. In that case, Please try one of the following.
-  - Change the 'excelFormatCopy' setting in user_config.yaml to false.
-  - Create another user_config.yaml focused on 'settingType' that outputs a lot of data(e.g., FieldLevelSecurity).
 - SessionSetting is output only some of the settings.
 - If the connected user's profile is set to High Assurance, the connection will fail.
 

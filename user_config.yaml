@@ -4,8 +4,6 @@ appConfigPath: "app_config.yaml"
 templateFilePath: "template.xlsx"
 # output excel file name
 resultFilePath: "result.xlsx"
-# enable excel format copy
-excelFormatCopy: true
 
 #
 # define the connecting organizations
@@ -15,12 +13,12 @@ excelFormatCopy: true
 org:
   - name: (ANY ORGANIZATION NAME 1)
     loginUrl: "https://test.salesforce.com"
-    apiVersion : "56.0"
+    apiVersion : "62.0"
     userName: "(YOUR USER NAME)"
     password: "(YOUR USER PASSWORD)"
 #  - name: (ANY ORGANIZATION NAME 2)
 #    loginUrl: "https://login.salesforce.com"
-#    apiVersion : "56.0"
+#    apiVersion : "62.0"
 #    userName: "(YOUR USER NAME)"
 #    password: "(YOUR USER PASSWORD)"
 
@@ -50,13 +48,16 @@ target:
 #   - ApexClassAccess
 #   - ApexPageAccess
 #   - CustomPermission
+#   - CustomMetadataTypeAccess
+#   - CustomSettingAccess
 #   - LoginIpRange
+#   - LoginHour
 #   - SessionSetting
 #   - PasswordPolicy
 #
 settingType: [
   "ObjectPermission",
-#  "FieldLevelSecurity",
+  "FieldLevelSecurity",
   "LayoutAssignment",
   "RecordTypeVisibility",
   "UserPermission",
@@ -65,7 +66,10 @@ settingType: [
   "ApexClassAccess",
   "ApexPageAccess",
   "CustomPermission",
+  "CustomMetadataTypeAccess",
+  "CustomSettingAccess",
   "LoginIpRange",
+  "LoginHour",
   "SessionSetting",
   "PasswordPolicy"
 ]
@@ -75,10 +79,10 @@ settingType: [
 #
 # If this parameter is not defined, All objects included in the profiles/permission sets are targets.
 #
-#object: [
-#  Account, 
-#  Contact, 
-#  Opportunity, 
-#  User, 
-#]
+object: [
+  Account, 
+  Contact, 
+  Opportunity, 
+  User, 
+]
 

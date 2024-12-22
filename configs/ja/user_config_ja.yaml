@@ -4,8 +4,6 @@ appConfigPath: "app_config_ja.yaml"
 templateFilePath: "template_ja.xlsx"
 # 出力する結果のExcelファイル名
 resultFilePath: "result.xlsx"
-# Excelの書式コピーの有無
-excelFormatCopy: true
 
 #
 # 接続する組織の指定
@@ -15,12 +13,12 @@ excelFormatCopy: true
 org:
   - name: (任意の組織名1)
     loginUrl: "https://test.salesforce.com"
-    apiVersion : "56.0"
+    apiVersion : "62.0"
     userName: "(ユーザ名)"
     password: "(パスワード)"
 #  - name: (任意の組織名2)
 #    loginUrl: "https://login.salesforce.com"
-#    apiVersion : "56.0"
+#    apiVersion : "62.0"
 #    userName: "(ユーザ名)"
 #    password: "(パスワード)"
 
@@ -50,13 +48,16 @@ target:
 #   - ApexClassAccess (有効なApexクラス)
 #   - ApexPageAccess (有効なVisualForceページアクセス)
 #   - CustomPermission (有効なカスタム権限)
+#   - CustomMetadataTypeAccess(有効なカスタムメタデータ型)
+#   - CustomSettingAccess(有効なカスタム設定の定義)
 #   - LoginIpRange (ログインIPアドレス制限)
+#   - LoginHour (ログイン可能時間)
 #   - SessionSetting (セッション設定)
 #   - PasswordPolicy (パスワードポリシー)
 #
 settingType: [
   "ObjectPermission",
-#  "FieldLevelSecurity",
+  "FieldLevelSecurity",
   "LayoutAssignment",
   "RecordTypeVisibility",
   "UserPermission",
@@ -65,7 +66,10 @@ settingType: [
   "ApexClassAccess",
   "ApexPageAccess",
   "CustomPermission",
+  "CustomMetadataTypeAccess",
+  "CustomSettingAccess",
   "LoginIpRange",
+  "LoginHour",
   "SessionSetting",
   "PasswordPolicy"
 ]
@@ -75,10 +79,10 @@ settingType: [
 #
 # このパラメータが無い場合は、プロファイル/権限セットに含まれる全オブジェクトを対象とする。
 #
-#object: [
-#  Account, 
-#  Contact, 
-#  Opportunity, 
-#  User, 
-#]
+object: [
+  Account, 
+  Contact, 
+  Opportunity, 
+  User, 
+]
 

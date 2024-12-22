@@ -111,9 +111,21 @@ settingTypeLabel:
   ApexClassAccess: "有効なApexクラス"
   ApexPageAccess: "有効なVisualForceページアクセス"
   CustomPermission: "有効なカスタム権限"
+  CustomMetadataTypeAccess: "有効なカスタムメタデータ型"
+  CustomSettingAccess: "有効なカスタム設定の定義"
   LoginIpRange: "ログインIPアドレス制限"
+  LoginHour: "ログイン可能時間"
   SessionSetting: "セッション設定"
   PasswordPolicy: "パスワードポリシー"
+
+loginHourLabel:
+  sunday: "日曜"
+  monday: "月曜"
+  tuesday: "火曜"
+  wednesday: "水曜"
+  thursday: "木曜"
+  friday: "金曜"
+  saturday: "土曜"
 
 # オブジェクト権限で出力対象外とするオブジェクトの定義
 exclusionObjectPermission: [

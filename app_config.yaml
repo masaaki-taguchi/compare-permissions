@@ -108,9 +108,21 @@ settingTypeLabel:
   ApexClassAccess: "ApexClassAccess"
   ApexPageAccess: "ApexPageAccess"
   CustomPermission: "CustomPermission"
+  CustomMetadataTypeAccess: "CustomMetadataTypeAccess"
+  CustomSettingAccess: "CustomSettingAccess"
   LoginIpRange: "LoginIpRange"
+  LoginHour: "LoginHour"
   SessionSetting: "SessionSetting"
   PasswordPolicy: "PasswordPolicy"
+
+loginHourLabel:
+  sunday: "Sunday"
+  monday: "Monday"
+  tuesday: "Tuesday"
+  wednesday: "Wednesday"
+  thursday: "Thursday"
+  friday: "Friday"
+  saturday: "Saturday"
 
 # define exclusion objects for object permissions
 exclusionObjectPermission: [

@@ -1,7 +1,8 @@
 'use strict';
 
 const jsforce = require('jsforce');
-const xlsx = require('xlsx-populate');
+const excel = require('exceljs');
+const path = require('path');
 
 const METADATA_TRUE = 'true';
 const METADATA_FALSE = 'false';
@@ -12,7 +13,7 @@ const ADD_INFO_HEADER = 'ADD_INFO:';
 const BOOLEAN_OUTPUT = '1';
 const BOOLEAN_NO_OUTPUT = '2';
 const BOOLEAN_OUTPUT_WITH_NA = '3';
-const STYLE_FILL = 'fill';
+const MAX_EXPLORE_COLS = 255;
 
 const OBJECT_PERMISSION = 'ObjectPermission';
 const FIELD_LEVEL_SECURITY = 'FieldLevelSecurity';
@@ -24,7 +25,10 @@ const TAB_VISIBILITY = 'TabVisibility';
 const APEX_CLASS_ACCESS = 'ApexClassAccess';
 const APEX_PAGE_ACCESS = 'ApexPageAccess';
 const CUSTOM_PERMISSION = 'CustomPermission';
+const CUSTOM_METADATA_TYPE_ACCESS = 'CustomMetadataTypeAccess';
+const CUSTOM_SETTING_ACCESS = 'CustomSettingAccess';
 const LOGIN_IP_RANGE = 'LoginIpRange';
+const LOGIN_HOUR = 'LoginHour';
 const SESSION_SETTING = 'SessionSetting';
 const PASSWORD_POLICY = 'PasswordPolicy';
 
@@ -62,42 +66,58 @@ const COMMAND_OPTION_CONFIG = '-c';
 let userConfigPath = DEFAULT_USER_CONFIG_PATH;
 global.enabledLogging = true;
 
-// analyzes command line options
-for (let i = 2; i < process.argv.length; i++) {
-  if (process.argv[i] === COMMAND_OPTION_SILENT) {
-    global.enabledLogging = false;
-  }
-  if (process.argv[i] === COMMAND_OPTION_CONFIG) {
-    if (i + 1 >= process.argv.length) {
+const COMMAND_OPTIONS = {
+  [COMMAND_OPTION_SILENT]: () => { global.enabledLogging = false; },
+  [COMMAND_OPTION_HELP]: () => { usage(); },
+  [COMMAND_OPTION_CONFIG]: (i, args) => {
+    if (i + 1 >= args.length) {
       usage();
     }
-    userConfigPath = process.argv[i + 1];
+    userConfigPath = args[i + 1];
+    return 1;
   }
-  if (process.argv[i] === COMMAND_OPTION_HELP) {
-    usage();
+};
+
+// analyzes command line options
+const params = [];
+const args = process.argv.slice(2);
+for (let i = 0; i < args.length; i++) {
+  const optionHandler = COMMAND_OPTIONS[args[i]];
+  if (optionHandler) {
+    i += optionHandler(i, args) || 0;
+  } else {
+    params.push(args[i]);
   }
 }
 
 loadUserConfig(userConfigPath);
 loadAppConfig();
-
 const userConfig = global.userConfig;
 const appConfig = global.appConfig;
-logging('Settings:');
-logging('  AppConfigPath:' + userConfig.appConfigPath);
-logging('  TemplateFilePath:' + userConfig.templateFilePath);
-logging('  ResultFilePath:' + userConfig.resultFilePath);
-logging('  ExcelFormatCopy:' + userConfig.excelFormatCopy);
-let target = '';
-userConfig.target.forEach(function(value) {
-  target += value.name;
-  if (value.ps) {target += '(PS)'}
-  target += ',';
-});
-target = target.replace(/,\s*$/, "");
-logging('  TargetProfiles/PermissionSets:' + target);
-logging('  TargetSettingTypes:' + userConfig.settingType);
-logging('  TargetObjects:' + userConfig.object);
+
+log('[Settings]');
+log('  AppConfigPath: ' + userConfig.appConfigPath);
+log('  TemplateFilePath: ' + userConfig.templateFilePath);
+log('  ResultFilePath: ' + userConfig.resultFilePath);
+log('  TargetProfiles/PermissionSets: ');
+if (userConfig.target) {
+  userConfig.target.forEach(value => {
+    const target = value.ps ? `${value.name}(PS)` : value.name;
+    log(`    ${target}`);
+  });
+}
+log('  TargetSettingTypes: ');
+if (userConfig.settingType) {
+  userConfig.settingType.forEach(value => {
+    log(`    ${value}`);
+  });
+}
+log('  TargetObjects: ');
+if (userConfig.object) {
+  userConfig.object.forEach(value => {
+    log(`    ${value}`);
+  });
+}
 
 (async () => {
   const baseInfoMap = new Map();
@@ -110,20 +130,23 @@ logging('  TargetObjects:' + userConfig.object);
   const tabVisibilityMap = new Map();
   const recordTypeVisibilityMap = new Map();
   const loginIpRangeMap = new Map();
+  const loginHourMap = new Map();
   const userPermissionMap = new Map();
   const customPermissionMap = new Map();
+  const customMetadataTypeAccessMap = new Map();
+  const customSettingAccessMap = new Map();
   const layoutAssignmentMap = new Map();
   const sessionSettingMap = new Map();
   const passwordPolicyMap = new Map();
 
-  for (const org of global.orgList) {
+  for (const org of global.orgs) {
     const orgName = org.name;
-    logging('**** Start to retrieve ****');
-    logging('OrgInfo:');
-    logging('  Name:' + org.name)
-    logging('  LoginUrl:' + org.loginUrl)
-    logging('  ApiVersion:' + org.apiVersion)
-    logging('  UserName:' + org.userName);
+    log('');
+    log('[OrgInfo]');
+    log('  Name:' + org.name)
+    log('  LoginUrl:' + org.loginUrl)
+    log('  ApiVersion:' + org.apiVersion)
+    log('  UserName:' + org.userName);
     let conn = new jsforce.Connection({ loginUrl: org.loginUrl, version: org.apiVersion });
     // login to salesforce
     await conn.login(org.userName, org.password, function (err, userInfo) {
@@ -134,152 +157,143 @@ logging('  TargetObjects:' + userConfig.object);
     });
 
     // retrieve metadata in profiles
-    if (global.profileNameList.length !== 0) {
-      for await (const value of global.profileNameList) {
-        const profileNameWorkList = [];
-        profileNameWorkList.push(value);
-        await conn.metadata.read(METADATA_TYPE_PROFILE, profileNameWorkList, function (err, metadataList) {
+    if (global.profileNames.length !== 0) {
+      for await (const profileName of global.profileNames) {
+        const profileNames = [];
+        profileNames.push(profileName);
+        await conn.metadata.read(METADATA_TYPE_PROFILE, profileNames, function (err, metadatas) {
           if (err) {
             console.error(err);
             process.exit(1);
           }
-          if (!Array.isArray(metadataList)) {
-            metadataList = [metadataList];
-          }
-          if (metadataList[0].fullName === undefined) {
-            logging('[Warning]Not exist a profile. Profile : ' + value);
+          log('[Processing profile: ' + profileName + ']');
+          metadatas = [metadatas].flat();
+          if (Object.keys(metadatas[0]).length === 0) {
+            log('  Unable to find a profile.');
             return;
           }
-
-          retrieveBaseInfo(metadataList, orgName, true, baseInfoMap);
-          retrieveObjectPermissions(metadataList, orgName, true, objectPermissionMap);
-          retrievefieldLevelSecurities(metadataList, orgName, true, fieldLevelSecurityMap, fieldLevelSecurityFieldSet);
-          retrieveLayoutAssignments(metadataList, orgName, true, layoutAssignmentMap);
-          retrieveRecordTypeVisibilities(metadataList, orgName, true, recordTypeVisibilityMap);
-          retrieveApexClassAccesses(metadataList, orgName, true, apexClassAccessMap);
-          retrieveApexPageAccesses(metadataList, orgName, true, apexPageAccessMap);
-          retrieveUserPermissions(metadataList, orgName, true, userPermissionMap);
-          retrieveApplicationVisibilities(metadataList, orgName, true, applicationVisibilityMap);
-          retrieveTabVisibilities(metadataList, orgName, true, tabVisibilityMap);
-          retrieveLoginIpRanges(metadataList, orgName, true, loginIpRangeMap);
-          retrieveCustomPermissions(metadataList, orgName, true, customPermissionMap);
+          retrieveBaseInfo(metadatas, orgName, true, baseInfoMap);
+          retrieveObjectPermissions(metadatas, orgName, true, objectPermissionMap);
+          retrievefieldLevelSecurities(metadatas, orgName, true, fieldLevelSecurityMap, fieldLevelSecurityFieldSet);
+          retrieveLayoutAssignments(metadatas, orgName, true, layoutAssignmentMap);
+          retrieveRecordTypeVisibilities(metadatas, orgName, true, recordTypeVisibilityMap);
+          retrieveApexClassAccesses(metadatas, orgName, true, apexClassAccessMap);
+          retrieveApexPageAccesses(metadatas, orgName, true, apexPageAccessMap);
+          retrieveUserPermissions(metadatas, orgName, true, userPermissionMap);
+          retrieveApplicationVisibilities(metadatas, orgName, true, applicationVisibilityMap);
+          retrieveTabVisibilities(metadatas, orgName, true, tabVisibilityMap);
+          retrieveLoginIpRanges(metadatas, orgName, true, loginIpRangeMap);
+          retrieveLoginHours(metadatas, orgName, true, loginHourMap);
+          retrieveCustomPermissions(metadatas, orgName, true, customPermissionMap);
+          retrieveCustomMetadataTypeAccesses(metadatas, orgName, true, customMetadataTypeAccessMap);
+          retrieveCustomSettingAccesses(metadatas, orgName, true, customSettingAccessMap);
         });
       }
     }
 
     const profileNameMap = new Map();
-    for (const value of global.profileNameList) {
-      const lowerName = value.toLowerCase(value);
-      profileNameMap.set(lowerName, value);
+    for (const profileName of global.profileNames) {
+      const profileLowerName = profileName.toLowerCase(profileName);
+      profileNameMap.set(profileLowerName, profileName);
     }
 
     // retrieve metadata in profile session setting
-    if (global.profileNameList.length !== 0 && isExecutable(SESSION_SETTING)) {
+    if (global.profileNames.length !== 0 && isExecutable(SESSION_SETTING)) {
       const types = [{ type: METADATA_TYPE_SESSION_SETTING, folder: null }];
-      const sessionSettingList = [];
-      await conn.metadata.list(types, org.apiVersion, function (err, metadataList) {
+      const sessionSettings = [];
+      await conn.metadata.list(types, org.apiVersion, function (err, metadatas) {
         if (err) {
           console.error(err);
           process.exit(1);
         }
-        if (!Array.isArray(metadataList)) {
-          metadataList = [metadataList];
-        }
-        for (const metadata of metadataList) {
-          sessionSettingList.push(metadata.fullName);
+        metadatas = [metadatas].flat();
+        for (const metadata of metadatas) {
+          sessionSettings.push(metadata.fullName);
         }
       });
 
-      for await (const value of sessionSettingList) {
-        const sessionSettingWorkList = [];
-        sessionSettingWorkList.push(value);
-        await conn.metadata.read(METADATA_TYPE_SESSION_SETTING, sessionSettingWorkList, function (err, metadataList) {
+      log('[Processing session setting]');
+      for await (const sessionSetting of sessionSettings) {
+        await conn.metadata.read(METADATA_TYPE_SESSION_SETTING, [sessionSetting], function (err, metadatas) {
           if (err) {
             console.error(err);
             process.exit(1);
           }
-          if (!Array.isArray(metadataList)) {
-            metadataList = [metadataList];
-          }
-          if (metadataList[0].fullName === undefined) {
-            logging('[Warning]Not exist a profile. Profile : ' + value);
+          metadatas = [metadatas].flat();
+          if (Object.keys(metadatas[0]).length === 0) {
+            log('  Unable to find a session setting: ' + sessionSetting);
             return;
           }
-          const profileName = metadataList[0].profile;
+          const profileName = metadatas[0].profile;
           if (profileNameMap.has(profileName)) {
-            retrieveSessionSetting(metadataList, orgName, profileNameMap.get(profileName), true, sessionSettingMap);
+            log('  profile: ' + profileName + ' sessionSetting: ' + sessionSetting);
+            retrieveSessionSetting(metadatas, orgName, profileNameMap.get(profileName), true, sessionSettingMap);
           }
         });
       }
     }
 
     // retrieve metadata in profile password policy
-    if (global.profileNameList.length !== 0 && isExecutable(PASSWORD_POLICY)) {
+    if (global.profileNames.length !== 0 && isExecutable(PASSWORD_POLICY)) {
       const types = [{ type: METADATA_TYPE_PASSWORD_POLICY, folder: null }];
-      const passwordPolicyList = [];
-      await conn.metadata.list(types, org.apiVersion, function (err, metadataList) {
+      const passwordPolicies = [];
+      await conn.metadata.list(types, org.apiVersion, function (err, metadatas) {
         if (err) {
           console.error(err);
           process.exit(1);
         }
-        if (!Array.isArray(metadataList)) {
-          metadataList = [metadataList];
-        }
-        for (const metadata of metadataList) {
-          passwordPolicyList.push(metadata.fullName);
+        metadatas = [metadatas].flat();
+        for (const metadata of metadatas) {
+          passwordPolicies.push(metadata.fullName);
         }
       });
 
-      for await (const value of passwordPolicyList) {
-        const passwordPolicyWorkList = [];
-        passwordPolicyWorkList.push(value);
-        await conn.metadata.read(METADATA_TYPE_PASSWORD_POLICY, passwordPolicyWorkList, function (err, metadataList) {
+      log('[Processing password policy]');
+      for await (const passwordPolicy of passwordPolicies) {
+        await conn.metadata.read(METADATA_TYPE_PASSWORD_POLICY, [passwordPolicy], function (err, metadatas) {
           if (err) {
             console.error(err);
             process.exit(1);
           }
-          if (!Array.isArray(metadataList)) {
-            metadataList = [metadataList];
-          }
-          if (metadataList[0].fullName === undefined) {
-            logging('[Warning]Not exist a profile. Profile : ' + value);
+          metadatas = [metadatas].flat();
+          if (Object.keys(metadatas[0]).length === 0) {
+            log('  Unable to find a password policy: ' + passwordPolicy);
             return;
           }
-          const profileName = metadataList[0].profile;
+          const profileName = metadatas[0].profile;
           if (profileNameMap.has(profileName)) {
-            retrievePasswordPolicy(metadataList, orgName, profileNameMap.get(profileName), true, passwordPolicyMap);
+            log('  profile: ' + profileName + ' password policy: ' + passwordPolicy);
+            retrievePasswordPolicy(metadatas, orgName, profileNameMap.get(profileName), true, passwordPolicyMap);
           }
         });
       }
     }
 
-    if (global.permissionSetNameList.length !== 0) {
+    if (global.permissionSetNames.length !== 0) {
       // retrieve metadata in permission set
-      const permissionSetAPINameList = await getPermissionSetAPINames(conn);
-      for await (const value of permissionSetAPINameList) {
-        const permissionSetAPINameWorkList = [];
-        permissionSetAPINameWorkList.push(value);
-
-        await conn.metadata.read(METADATA_TYPE_PERMISSION_SET, permissionSetAPINameWorkList, function (err, metadataList) {
+      const permissionSetAPINames = await getPermissionSetAPINames(conn);
+      for await (const permissionSetAPIName of permissionSetAPINames) {
+        await conn.metadata.read(METADATA_TYPE_PERMISSION_SET, [permissionSetAPIName], function (err, metadatas) {
           if (err) {
             console.error(err);
             process.exit(1);
           }
-          if (!Array.isArray(metadataList)) {
-            metadataList = [metadataList];
-          }
+          metadatas = [metadatas].flat();
 
-          retrieveBaseInfo(metadataList, orgName, false, baseInfoMap);
-          retrieveObjectPermissions(metadataList, orgName, false, objectPermissionMap);
-          retrievefieldLevelSecurities(metadataList, orgName, false, fieldLevelSecurityMap, fieldLevelSecurityFieldSet);
-          retrieveLayoutAssignments(metadataList, orgName, false, layoutAssignmentMap);
-          retrieveRecordTypeVisibilities(metadataList, orgName, false, recordTypeVisibilityMap);
-          retrieveApexClassAccesses(metadataList, orgName, false, apexClassAccessMap);
-          retrieveApexPageAccesses(metadataList, orgName, false, apexPageAccessMap);
-          retrieveUserPermissions(metadataList, orgName, false, userPermissionMap);
-          retrieveApplicationVisibilities(metadataList, orgName, false, applicationVisibilityMap);
-          retrieveTabVisibilities(metadataList, orgName, false, tabVisibilityMap);
-          retrieveCustomPermissions(metadataList, orgName, false, customPermissionMap);
+          log('[Processing permission set: ' + permissionSetAPIName + ']');
+          retrieveBaseInfo(metadatas, orgName, false, baseInfoMap);
+          retrieveObjectPermissions(metadatas, orgName, false, objectPermissionMap);
+          retrievefieldLevelSecurities(metadatas, orgName, false, fieldLevelSecurityMap, fieldLevelSecurityFieldSet);
+          retrieveLayoutAssignments(metadatas, orgName, false, layoutAssignmentMap);
+          retrieveRecordTypeVisibilities(metadatas, orgName, false, recordTypeVisibilityMap);
+          retrieveApexClassAccesses(metadatas, orgName, false, apexClassAccessMap);
+          retrieveApexPageAccesses(metadatas, orgName, false, apexPageAccessMap);
+          retrieveUserPermissions(metadatas, orgName, false, userPermissionMap);
+          retrieveApplicationVisibilities(metadatas, orgName, false, applicationVisibilityMap);
+          retrieveTabVisibilities(metadatas, orgName, false, tabVisibilityMap);
+          retrieveCustomPermissions(metadatas, orgName, false, customPermissionMap);
+          retrieveCustomMetadataTypeAccesses(metadatas, orgName, false, customMetadataTypeAccessMap);
+          retrieveCustomSettingAccesses(metadatas, orgName, false, customSettingAccessMap);
         });
       }
     }
@@ -293,22 +307,36 @@ logging('  TargetObjects:' + userConfig.object);
     await compensateApplicationVisibilities(conn, applicationVisibilityMap);
     await compensateTabVisibilities(conn, tabVisibilityMap);
     await compensateCustomPermissions(conn, customPermissionMap);
+    await compensateByEntityDefinition(conn, customMetadataTypeAccessMap, CUSTOM_METADATA_TYPE_ACCESS);
+    await compensateByEntityDefinition(conn, customSettingAccessMap, CUSTOM_SETTING_ACCESS);
     await compensateSessionSetting(conn, sessionSettingMap);
     await compensatePasswordPolicy(conn, passwordPolicyMap);
 
     await conn.logout(function(err) {
       if (err) { return console.error(err); }
-      logging('Logout. userName:' + org.userName);
     });
 
   }
 
   // export to an excel file
-  let workBook = await xlsx.fromFileAsync(userConfig.templateFilePath);
-  logging('Export to an excel file.');
-  const sheet = workBook.sheet(0);
+  let workbook = new excel.Workbook();
+  const templatePath = resolvePath(userConfig.templateFilePath);
+  await workbook.xlsx.readFile(templatePath);
+
+  const styleFill = (cell, color) => {
+    cell.style = {...cell.style};
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: color }
+    }
+  };
+
+  log('');
+  log('[Exporting to an Excel file: ' + userConfig.resultFilePath + ']');
+  const sheet = workbook.worksheets[0];
   let cell;
-  const templateStyleList = getTemplateStyleList(sheet);
+  const templateStyles = getTemplateStyles(sheet);
 
   let targetNameWorkX = appConfig.targetNamePosition[0];
   const targetNameWorkY = appConfig.targetNamePosition[1];
@@ -320,59 +348,61 @@ logging('  TargetObjects:' + userConfig.object);
   const targetCustomWorkY = appConfig.targetCustomPosition[1];
 
   // output base information for profile and permission set
-  for (let targetCnt = 0; targetCnt < global.targetNameList.length; targetCnt++) {
-    let targetName = global.targetNameList[targetCnt];
+  for (let targetCnt = 0; targetCnt < global.targetNames.length; targetCnt++) {
+    let targetName = global.targetNames[targetCnt];
     let color = appConfig.targetGroupColorDefault;
-    if (global.orgList.length >= 2) {
+    if (global.orgs.length >= 2) {
       if (targetCnt % 2 === 0) {
         color = appConfig.targetGroupColor1;
       } else {
         color = appConfig.targetGroupColor2;
       }
     }
-    for (const org of global.orgList) {
+
+    for (const org of global.orgs) {
       const key = org.name + '.' + targetName;
       const value = baseInfoMap.get(key);
       if (value) {
-        cell = sheet.row(targetNameWorkY).cell(targetNameWorkX);
-        cell.value(value.get(KEY_BASE_INFO_NAME) + '\n(' + org.name + ')');
-        cell.style(STYLE_FILL, color);
+        cell = sheet.getCell(targetNameWorkY, targetNameWorkX);
+        cell.value = value.get(KEY_BASE_INFO_NAME) + '\n(' + org.name + ')';
+        styleFill(cell, color);
 
-        cell = sheet.row(targetPermissionSetWorkY).cell(targetPermissionSetWorkX);
-        cell.value(convertBoolean(value.get(KEY_BASE_INFO_PERMISSION_SET)));
-        cell.style(STYLE_FILL, color);
+        cell = sheet.getCell(targetPermissionSetWorkY, targetPermissionSetWorkX);
+        cell.value = convertBoolean(value.get(KEY_BASE_INFO_PERMISSION_SET));
+        styleFill(cell, color);
 
-        cell = sheet.row(targetLicenseWorkY).cell(targetLicenseWorkX);
-        cell.value(value.get(KEY_BASE_INFO_USER_LICENSE));
-        cell.style(STYLE_FILL, color);
+        cell = sheet.getCell(targetLicenseWorkY, targetLicenseWorkX);
+        cell.value = value.get(KEY_BASE_INFO_USER_LICENSE);
+        styleFill(cell, color);
 
-        cell = sheet.row(targetCustomWorkY).cell(targetCustomWorkX);
-        cell.value(convertBoolean(value.get(KEY_BASE_INFO_CUSTOM)));
+        cell = sheet.getCell(targetCustomWorkY, targetCustomWorkX);
+        cell.value = convertBoolean(value.get(KEY_BASE_INFO_CUSTOM));
         if (isTrue(value.get(KEY_BASE_INFO_PERMISSION_SET))) {
-          cell.style(STYLE_FILL, appConfig.notApplicableColor);
+          styleFill(cell, appConfig.notApplicableColor);
         } else {
-          cell.style(STYLE_FILL, color);
+          styleFill(cell, color);
         }
       } else {
-        cell = sheet.row(targetNameWorkY).cell(targetNameWorkX);
-        cell.value(targetName.slice(2) + '\n(' + org.name + ')');
-        cell.style(STYLE_FILL, appConfig.notApplicableColor);
+        cell = sheet.getCell(targetNameWorkY, targetNameWorkX);
+        cell.value = targetName.slice(2) + '\n(' + org.name + ')';
+        styleFill(cell, appConfig.notApplicableColor);
 
-        cell = sheet.row(targetPermissionSetWorkY).cell(targetPermissionSetWorkX);
+        cell = sheet.getCell(targetPermissionSetWorkY, targetPermissionSetWorkX);
         if (targetName.slice(0, 2) === PREFIX_PERMISSION_SET_NAME) {
-          cell.value(convertBoolean(METADATA_TRUE));
+          cell.value = convertBoolean(METADATA_TRUE);
         } else {
-          cell.value(convertBoolean(METADATA_FALSE));
+          cell.value = convertBoolean(METADATA_FALSE);
         }
-        cell.style(STYLE_FILL, appConfig.notApplicableColor);
+        styleFill(cell, appConfig.notApplicableColor);
 
-        cell = sheet.row(targetLicenseWorkY).cell(targetLicenseWorkX);
-        cell.value('-');
-        cell.style(STYLE_FILL, appConfig.notApplicableColor);
+        cell = sheet.getCell(targetLicenseWorkY, targetLicenseWorkX);
+        cell.value = '-';
+        styleFill(cell, appConfig.notApplicableColor);
 
-        cell = sheet.row(targetCustomWorkY).cell(targetCustomWorkX);
-        cell.value('-');
-        cell.style(STYLE_FILL, appConfig.notApplicableColor);
+        cell = sheet.getCell(targetCustomWorkY, targetCustomWorkX);
+        cell.value = '-';
+        styleFill(cell, appConfig.notApplicableColor);
+
       }
       targetNameWorkX++;
       targetPermissionSetWorkX++;
@@ -392,7 +422,7 @@ logging('  TargetObjects:' + userConfig.object);
     let resultWorkX = 0;
 
     // define the output method for each metadata
-    const defaultPutMap = new Map([
+    const defaultOutputMap = new Map([
       [OBJECT_PERMISSION,
         [OBJECT_PERMISSION, objectPermissionMap, BOOLEAN_NO_OUTPUT,
           'CRUD', 'R', '', true, false]],
@@ -427,8 +457,17 @@ logging('  TargetObjects:' + userConfig.object);
       [LOGIN_IP_RANGE,
         [LOGIN_IP_RANGE, loginIpRangeMap, BOOLEAN_OUTPUT,
           METADATA_TRUE, '', METADATA_FALSE, false, true]],
+      [LOGIN_HOUR,
+        [LOGIN_HOUR, loginHourMap, BOOLEAN_OUTPUT,
+          METADATA_TRUE, '', METADATA_FALSE, false, true]],
       [CUSTOM_PERMISSION,
         [CUSTOM_PERMISSION, customPermissionMap, BOOLEAN_OUTPUT,
+          METADATA_TRUE, '', METADATA_FALSE, false, false]],
+      [CUSTOM_METADATA_TYPE_ACCESS,
+        [CUSTOM_METADATA_TYPE_ACCESS, customMetadataTypeAccessMap, BOOLEAN_OUTPUT,
+          METADATA_TRUE, '', METADATA_FALSE, false, false]],
+      [CUSTOM_SETTING_ACCESS,
+        [CUSTOM_SETTING_ACCESS, customSettingAccessMap, BOOLEAN_OUTPUT,
           METADATA_TRUE, '', METADATA_FALSE, false, false]],
       [SESSION_SETTING,
         [SESSION_SETTING, sessionSettingMap, BOOLEAN_NO_OUTPUT,
@@ -439,24 +478,24 @@ logging('  TargetObjects:' + userConfig.object);
     ]);
 
     // get the type of metadata to output
-    const putList = [];
+    const outputs = [];
     if (global.settingTypeSet.size === 0) {
-      for (const value of defaultPutMap.keys()) {
-        putList.push(defaultPutMap.get(value));
+      for (const value of defaultOutputMap.keys()) {
+        outputs.push(defaultOutputMap.get(value));
       }
     } else {
       for (const value of global.settingTypeSet) {
-        if (!defaultPutMap.has(value)) {
-          logging('[Error]Incorrect a metadata type name. Name : ' + value);
+        if (!defaultOutputMap.has(value)) {
+          log('Incorrect a metadata type name: ' + value);
           process.exit(1);
         }
-        putList.push(defaultPutMap.get(value));
+        outputs.push(defaultOutputMap.get(value));
       }
     }
 
     const settingTypeLabelMap = global.appConfig.settingTypeLabel;
 
-    putList.forEach(function (value, index) {
+    outputs.forEach(function (value, index) {
       const settingType = value[0];
       const metadataMap = value[1];
       const sortedMap = new Map([...metadataMap.entries()].sort());
@@ -467,67 +506,66 @@ logging('  TargetObjects:' + userConfig.object);
       const fillsBlankWithNoAuthorityColor = value[6];
       const notApplicablePermmisonSet = value[7];
 
-      let paintedFirstframe = false;
-
+      let isFirstRow = true;
       for (const key of sortedMap.keys()) {
-        if (userConfig.excelFormatCopy === undefined || userConfig.excelFormatCopy === true) {
-          putTemplateStyle(sheet, templateStyleList, resultWorkY);
+        putTemplateStyle(sheet, templateStyles, resultWorkY);
+        if (isFirstRow) {
+          putFirstFrameStyle(sheet, templateStyles, resultWorkY);
+          isFirstRow = false;
         }
-        if (!paintedFirstframe) {
-          putFirstFrameStyle(sheet, templateStyleList, resultWorkY);
-          paintedFirstframe = true;
-        }
-        cell = sheet.row(typeWorkY).cell(typeWorkX);
+        cell = sheet.getCell(typeWorkY, typeWorkX);
         const settingTypeLabel = settingTypeLabelMap[settingType];
-        if (settingTypeLabel !== undefined) {
-          cell.value(settingTypeLabel);
+        if (settingTypeLabel) {
+          cell.value = settingTypeLabel;
         } else {
-          cell.value(settingType);
+          cell.value = settingType;
         }
-        cell = sheet.row(nameWorkY).cell(nameWorkX);
+
+        cell = sheet.getCell(nameWorkY, nameWorkX);
         const nameRegex = new RegExp('^(.+?)( ' + ADD_INFO_HEADER + '(.+?))*$').exec(key);
-        cell.value(nameRegex[1]);
-        cell = sheet.row(secondNameWorkY).cell(secondNameWorkX);
+        cell.value = nameRegex[1];
+        cell = sheet.getCell(secondNameWorkY, secondNameWorkX);
         if (nameRegex[3]) {
-          cell.value(nameRegex[3]);
+          cell.value = nameRegex[3];
         }
 
         const valueMap = metadataMap.get(key);
         if (valueMap.has(LABEL_KEY_NAME)) {
           const value = valueMap.get(LABEL_KEY_NAME);
-          cell = sheet.row(labelWorkY).cell(labelWorkX);
-          cell.value(value);
+          cell = sheet.getCell(labelWorkY, labelWorkX);
+          cell.value = value;
         }
         resultWorkX = appConfig.resultPosition[0];
-        for (const targetName of global.targetNameList) {
+        for (const targetName of global.targetNames) {
           let beforeValue;
           let value;
-          for (let orgCnt = 0; orgCnt < global.orgList.length; orgCnt++) {
-            const org = global.orgList[orgCnt];
-            cell = sheet.row(resultWorkY).cell(resultWorkX);
+          for (let orgCnt = 0; orgCnt < global.orgs.length; orgCnt++) {
+            const org = global.orgs[orgCnt];
+            cell = sheet.getCell(resultWorkY, resultWorkX);
             const key = org.name + '.' + targetName;
             if (valueMap.has(key)) {
               value = valueMap.get(key);
               if (value !== undefined) {
                 if (fullAuthorityValue.length > 0 && value.match(new RegExp(fullAuthorityValue))) {
-                  cell.style(STYLE_FILL, appConfig.fullAuthorityColor);
+                  styleFill(cell, appConfig.fullAuthorityColor);
+
                 } else if (partialAuthorityValue.length > 0 && value.match(new RegExp(partialAuthorityValue))) {
-                  cell.style(STYLE_FILL, appConfig.partialAuthorityColor);
+                  styleFill(cell, appConfig.partialAuthorityColor);
                 } else if (noAuthorityValue.length > 0 && value.match(new RegExp(noAuthorityValue))) {
-                  cell.style(STYLE_FILL, appConfig.noAuthorityColor);
+                  styleFill(cell, appConfig.noAuthorityColor);
                 } else if (value.length === 0 && fillsBlankWithNoAuthorityColor) {
-                  cell.style(STYLE_FILL, appConfig.noAuthorityColor);
+                  styleFill(cell, appConfig.noAuthorityColor);
                 }
               }
               if (booleanBehavior !== BOOLEAN_NO_OUTPUT) {
-                cell.value(convertBoolean(value));
+                cell.value = convertBoolean(value);
               } else {
-                cell.value(value);
+                cell.value = value;
               }
               if (orgCnt !== 0) {
                 if (value !== beforeValue) {
-                  cell = sheet.row(resultWorkY).cell(appConfig.orgDifferentXPosition);
-                  cell.value(appConfig.orgDifferentLabel);
+                  cell = sheet.getCell(resultWorkY, appConfig.orgDifferentXPosition);
+                  cell.value = appConfig.orgDifferentLabel;
                 }
                 beforeValue = value;
               } else {
@@ -537,28 +575,28 @@ logging('  TargetObjects:' + userConfig.object);
               value = null;
               if (baseInfoMap.has(key)) {
                 if (notApplicablePermmisonSet && targetName.indexOf(PREFIX_PERMISSION_SET_NAME) === 0) {
-                  cell.value(appConfig.notApplicableLabel);
-                  cell.style(STYLE_FILL, appConfig.notApplicableColor);
+                  cell.value = appConfig.notApplicableLabel;
+                  styleFill(cell, appConfig.notApplicableColor);
                 } else if (settingType === FIELD_LEVEL_SECURITY) {
                   if (fillsBlankWithNoAuthorityColor) {
-                    cell.style(STYLE_FILL, appConfig.noAuthorityColor);
+                    styleFill(cell, appConfig.noAuthorityColor);
                   }
                 } else if (booleanBehavior === BOOLEAN_OUTPUT) {
-                  cell.value(convertBoolean(METADATA_FALSE));
-                  cell.style(STYLE_FILL, appConfig.noAuthorityColor);
+                  cell.value = convertBoolean(METADATA_FALSE);
+                  styleFill(cell, appConfig.noAuthorityColor);
                 } else if (booleanBehavior === BOOLEAN_OUTPUT_WITH_NA) {
-                  cell.value(appConfig.notApplicableLabel);
-                  cell.style(STYLE_FILL, appConfig.noAuthorityColor);
+                  cell.value = appConfig.notApplicableLabel;
+                  styleFill(cell, appConfig.noAuthorityColor);
                 } else if (fillsBlankWithNoAuthorityColor) {
-                  cell.style(STYLE_FILL, appConfig.noAuthorityColor);
+                  styleFill(cell, appConfig.noAuthorityColor);
                 }
               } else {
-                cell.style(STYLE_FILL, appConfig.notApplicableColor);
+                styleFill(cell, appConfig.notApplicableColor);
               }
               if (orgCnt !== 0) {
                 if (value !== beforeValue) {
-                  cell = sheet.row(resultWorkY).cell(appConfig.orgDifferentXPosition);
-                  cell.value(appConfig.orgDifferentLabel);
+                  cell = sheet.getCell(resultWorkY, appConfig.orgDifferentXPosition);
+                  cell.value = appConfig.orgDifferentLabel;
                 }
                 beforeValue = value;
               } else {
@@ -577,13 +615,17 @@ logging('  TargetObjects:' + userConfig.object);
     });
 
   }
-  await workBook.toFileAsync(userConfig.resultFilePath);
-  logging('Done.');
+  await workbook.xlsx.writeFile(userConfig.resultFilePath);
+  log('Done.');
 })();
 
-function retrieveBaseInfo(metadataList, orgName, isProfile, baseInfoMap) {
-  for (const metadata of metadataList) {
-    loggingWithTargetName(metadata, isProfile, 'Retrieve base info.');
+function resolvePath(filePath) {
+  return path.isAbsolute(filePath) ? filePath : path.join(__dirname, filePath);
+}
+
+function retrieveBaseInfo(metadatas, orgName, isProfile, baseInfoMap) {
+  for (const metadata of metadatas) {
+    log('  Retrieving base info...');
     const valueMap = new Map();
 
     if (isProfile) {
@@ -604,21 +646,19 @@ function retrieveBaseInfo(metadataList, orgName, isProfile, baseInfoMap) {
   }
 }
 
-function retrieveObjectPermissions(metadataList, orgName, isProfile, objectPermissionMap) {
+function retrieveObjectPermissions(metadatas, orgName, isProfile, objectPermissionMap) {
   if (!isExecutable(OBJECT_PERMISSION)) {
     return;
   }
   const targetObjectSet = global.targetObjectSet;
 
-  for (const metadata of metadataList) {
-    loggingWithTargetName(metadata, isProfile, 'Retrieve object permissions.');
+  for (const metadata of metadatas) {
+    log('  Retrieving object permissions...');
 
     let objectPermissions = metadata.objectPermissions;
-    if (!Array.isArray(objectPermissions)) {
-      objectPermissions = [objectPermissions];
-    }
+    objectPermissions = [objectPermissions].flat();
     objectPermissions.forEach(function (objectPermission) {
-      if (objectPermission === undefined) {
+      if (!objectPermission) {
         return;
       }
       if (targetObjectSet.size > 0 &&
@@ -642,20 +682,18 @@ function retrieveObjectPermissions(metadataList, orgName, isProfile, objectPermi
   }
 }
 
-function retrievefieldLevelSecurities(metadataList, orgName, isProfile, fieldLevelSecurityMap, fieldLevelSecurityFieldSet) {
+function retrievefieldLevelSecurities(metadatas, orgName, isProfile, fieldLevelSecurityMap, fieldLevelSecurityFieldSet) {
   if (!isExecutable(FIELD_LEVEL_SECURITY)) {
     return;
   }
   const targetObjectSet = global.targetObjectSet;
 
-  for (const metadata of metadataList) {
-    loggingWithTargetName(metadata, isProfile, 'Retrieve field-level securities.');
+  for (const metadata of metadatas) {
+    log('  Retrieving field-level security...');
     let fieldPermissions = metadata.fieldPermissions;
-    if (!Array.isArray(fieldPermissions)) {
-      fieldPermissions = [fieldPermissions];
-    }
+    fieldPermissions = [fieldPermissions].flat();
     fieldPermissions.forEach(function (fieldPermission) {
-      if (fieldPermission === undefined) {
+      if (!fieldPermission) {
         return;
       }
       if (targetObjectSet.size > 0 &&
@@ -676,18 +714,16 @@ function retrievefieldLevelSecurities(metadataList, orgName, isProfile, fieldLev
   }
 }
 
-function retrieveLayoutAssignments(metadataList, orgName, isProfile, layoutAssignmentMap) {
+function retrieveLayoutAssignments(metadatas, orgName, isProfile, layoutAssignmentMap) {
   if (!isExecutable(LAYOUT_ASSIGNMENT)) {
     return;
   }
-  for (const metadata of metadataList) {
-    loggingWithTargetName(metadata, isProfile, 'Retrieve layout assignments.');
+  for (const metadata of metadatas) {
+    log('  Retrieving layout assignments...');
     let layoutAssignments = metadata.layoutAssignments;
-    if (!Array.isArray(layoutAssignments)) {
-      layoutAssignments = [layoutAssignments];
-    }
+    layoutAssignments = [layoutAssignments].flat();
     layoutAssignments.forEach(function (layoutAssignment) {
-      if (layoutAssignment === undefined) {
+      if (!layoutAssignment) {
         return;
       }
       let name = layoutAssignment.layout;
@@ -708,18 +744,16 @@ function retrieveLayoutAssignments(metadataList, orgName, isProfile, layoutAssig
   }
 }
 
-function retrieveRecordTypeVisibilities(metadataList, orgName, isProfile, recordTypeVisibilityMap) {
+function retrieveRecordTypeVisibilities(metadatas, orgName, isProfile, recordTypeVisibilityMap) {
   if (!isExecutable(RECORD_TYPE_VISIBILITY)) {
     return;
   }
-  for (const metadata of metadataList) {
-    loggingWithTargetName(metadata, isProfile, 'Retrieve record-type visibilities.');
+  for (const metadata of metadatas) {
+    log('  Retrieving record-type visibilities...');
     let recordTypeVisibilities = metadata.recordTypeVisibilities;
-    if (!Array.isArray(recordTypeVisibilities)) {
-      recordTypeVisibilities = [recordTypeVisibilities];
-    }
+    recordTypeVisibilities = [recordTypeVisibilities].flat();
     recordTypeVisibilities.forEach(function (recordTypeVisibility) {
-      if (recordTypeVisibility === undefined) {
+      if (!recordTypeVisibility) {
         return;
       }
 
@@ -773,18 +807,16 @@ function retrieveRecordTypeVisibilities(metadataList, orgName, isProfile, record
   }
 }
 
-function retrieveApexClassAccesses(metadataList, orgName, isProfile, apexClassAccessMap) {
+function retrieveApexClassAccesses(metadatas, orgName, isProfile, apexClassAccessMap) {
   if (!isExecutable(APEX_CLASS_ACCESS)) {
     return;
   }
-  for (const metadata of metadataList) {
-    loggingWithTargetName(metadata, isProfile, 'Retrieve apex class accesses.');
+  for (const metadata of metadatas) {
+    log('  Retrieving apex class accesses...');
     let classAccesses = metadata.classAccesses;
-    if (!Array.isArray(classAccesses)) {
-      classAccesses = [classAccesses];
-    }
+    classAccesses = [classAccesses].flat();
     classAccesses.forEach(function (classAccess) {
-      if (classAccess === undefined) {
+      if (!classAccess) {
         return;
       }
       if (!apexClassAccessMap.has(classAccess.apexClass)) {
@@ -797,18 +829,16 @@ function retrieveApexClassAccesses(metadataList, orgName, isProfile, apexClassAc
   }
 }
 
-function retrieveApexPageAccesses(metadataList, orgName, isProfile, apexPageAccessMap) {
+function retrieveApexPageAccesses(metadatas, orgName, isProfile, apexPageAccessMap) {
   if (!isExecutable(APEX_PAGE_ACCESS)) {
     return;
   }
-  for (const metadata of metadataList) {
-    loggingWithTargetName(metadata, isProfile, 'Retrieve apex page accesses.');
+  for (const metadata of metadatas) {
+    log('  Retrieving apex page accesses...');
     let pageAccesses = metadata.pageAccesses;
-    if (!Array.isArray(pageAccesses)) {
-      pageAccesses = [pageAccesses];
-    }
+    pageAccesses = [pageAccesses].flat();
     pageAccesses.forEach(function (pageAccess) {
-      if (pageAccess === undefined) {
+      if (!pageAccess) {
         return;
       }
       if (!apexPageAccessMap.has(pageAccess.apexPage)) {
@@ -821,19 +851,17 @@ function retrieveApexPageAccesses(metadataList, orgName, isProfile, apexPageAcce
   }
 }
 
-function retrieveUserPermissions(metadataList, orgName, isProfile, userPermissionMap) {
+function retrieveUserPermissions(metadatas, orgName, isProfile, userPermissionMap) {
   if (!isExecutable(USER_PERMISSION)) {
     return;
   }
 
-  for (const metadata of metadataList) {
-    loggingWithTargetName(metadata, isProfile, 'Retrieve user permissions.');
+  for (const metadata of metadatas) {
+    log('  Retrieving user permissions...');
     let userPermissions = metadata.userPermissions;
-    if (!Array.isArray(userPermissions)) {
-      userPermissions = [userPermissions];
-    }
+    userPermissions = [userPermissions].flat();
     userPermissions.forEach(function (userPermission) {
-      if (userPermission === undefined) {
+      if (!userPermission) {
         return;
       }
       if (!userPermissionMap.has(userPermission.name)) {
@@ -846,19 +874,17 @@ function retrieveUserPermissions(metadataList, orgName, isProfile, userPermissio
   }
 }
 
-function retrieveApplicationVisibilities(metadataList, orgName, isProfile, applicationVisibilityMap) {
+function retrieveApplicationVisibilities(metadatas, orgName, isProfile, applicationVisibilityMap) {
   if (!isExecutable(APPLICATION_VISIBILITY)) {
     return;
   }
   const appConfig = global.appConfig;
-  for (const metadata of metadataList) {
-    loggingWithTargetName(metadata, isProfile, 'Retrieve application visibilities.');
+  for (const metadata of metadatas) {
+    log('  Retrieving application visibilities...');
     let applicationVisibilities = metadata.applicationVisibilities;
-    if (!Array.isArray(applicationVisibilities)) {
-      applicationVisibilities = [applicationVisibilities];
-    }
+    applicationVisibilities = [applicationVisibilities].flat();
     applicationVisibilities.forEach(function (applicationVisibility) {
-      if (applicationVisibility === undefined) {
+      if (!applicationVisibility) {
         return;
       }
       if (!applicationVisibilityMap.has(applicationVisibility.application)) {
@@ -880,24 +906,22 @@ function retrieveApplicationVisibilities(metadataList, orgName, isProfile, appli
   }
 }
 
-function retrieveTabVisibilities(metadataList, orgName, isProfile, tabVisibilityMap) {
+function retrieveTabVisibilities(metadatas, orgName, isProfile, tabVisibilityMap) {
   if (!isExecutable(TAB_VISIBILITY)) {
     return;
   }
   const appConfig = global.appConfig;
-  for (const metadata of metadataList) {
-    loggingWithTargetName(metadata, isProfile, 'Retrieve tab visibilities.');
+  for (const metadata of metadatas) {
+    log('  Retrieving tab visibilities...');
     let tabVisibilities;
     if (isProfile) {
       tabVisibilities = metadata.tabVisibilities;
     } else {
       tabVisibilities = metadata.tabSettings;
     }
-    if (!Array.isArray(tabVisibilities)) {
-      tabVisibilities = [tabVisibilities];
-    }
+    tabVisibilities = [tabVisibilities].flat();
     tabVisibilities.forEach(function (tabVisibility) {
-      if (tabVisibility === undefined) {
+      if (!tabVisibility) {
         return;
       }
       if (!tabVisibilityMap.has(tabVisibility.tab)) {
@@ -925,18 +949,16 @@ function retrieveTabVisibilities(metadataList, orgName, isProfile, tabVisibility
   }
 }
 
-function retrieveLoginIpRanges(metadataList, orgName, isProfile, loginIpRangeMap) {
+function retrieveLoginIpRanges(metadatas, orgName, isProfile, loginIpRangeMap) {
   if (!isExecutable(LOGIN_IP_RANGE)) {
     return;
   }
-  for (const metadata of metadataList) {
-    loggingWithTargetName(metadata, isProfile, 'Retrieve login IP ranges.');
+  for (const metadata of metadatas) {
+    log('  Retrieving login IP ranges...');
     let loginIpRanges = metadata.loginIpRanges;
-    if (!Array.isArray(loginIpRanges)) {
-      loginIpRanges = [loginIpRanges];
-    }
+    loginIpRanges = [loginIpRanges].flat();
     loginIpRanges.forEach(function (loginIpRange) {
-      if (loginIpRange === undefined) {
+      if (!loginIpRange) {
         return;
       }
       const ipRange = loginIpRange.startAddress + ' - ' + loginIpRange.endAddress;
@@ -944,24 +966,71 @@ function retrieveLoginIpRanges(metadataList, orgName, isProfile, loginIpRangeMap
         loginIpRangeMap.set(ipRange, new Map());
       }
       const valueMap = loginIpRangeMap.get(ipRange);
+      if (loginIpRange.description) {
+        valueMap.set(LABEL_KEY_NAME, loginIpRange.description);
+      }
       const key = getMetadataKey(orgName, isProfile, metadata);
       valueMap.set(key, METADATA_TRUE);
     });
   }
 }
 
-function retrieveCustomPermissions(metadataList, orgName, isProfile, customPermissionMap) {
+function retrieveLoginHours(metadatas, orgName, isProfile, loginHourMap) {
+  if (!isExecutable(LOGIN_HOUR)) {
+    return;
+  }
+
+  const days = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+  const convertToTimeFmt = (minutes) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+  };
+  for (const metadata of metadatas) {
+    log('  Retrieving login hours...');
+    let loginHours = metadata.loginHours;
+    loginHours = [loginHours].flat();
+    loginHours.forEach(function (loginHour) {
+      if (!loginHour) {
+        return;
+      }
+      const processedHours = days.map((day, index) => {
+        const startKey = `${day}Start`;
+        const endKey = `${day}End`;
+
+        if (loginHour[startKey] !== undefined && loginHour[endKey] !== undefined) {
+            const startTime = convertToTimeFmt(Number(loginHour[startKey]));
+            const endTime = convertToTimeFmt(Number(loginHour[endKey]));
+            let dayLabel = appConfig.loginHourLabel[day];
+            if (!dayLabel) dayLabel = day;
+            return `${index + 1}_${dayLabel} ${startTime} - ${endTime}`;
+        }
+        return null;
+      }).filter(Boolean);
+
+      processedHours.forEach((processedHour) => {
+        if (!loginHourMap.has(processedHour)) {
+          loginHourMap.set(processedHour, new Map());
+        }
+        const valueMap = loginHourMap.get(processedHour);
+        const key = getMetadataKey(orgName, isProfile, metadata);
+        valueMap.set(key, METADATA_TRUE);    
+      });
+
+    });
+  }
+}
+
+function retrieveCustomPermissions(metadatas, orgName, isProfile, customPermissionMap) {
   if (!isExecutable(CUSTOM_PERMISSION)) {
     return;
   }
-  for (const metadata of metadataList) {
-    loggingWithTargetName(metadata, isProfile, 'Retrieve custom permissions.');
+  for (const metadata of metadatas) {
+    log('  Retrieving custom permissions...');
     let customPermissions = metadata.customPermissions;
-    if (!Array.isArray(customPermissions)) {
-      customPermissions = [customPermissions];
-    }
+    customPermissions = [customPermissions].flat();
     customPermissions.forEach(function (customPermission) {
-      if (customPermission === undefined) {
+      if (!customPermission) {
         return;
       }
       if (!customPermissionMap.has(customPermission.name)) {
@@ -974,7 +1043,51 @@ function retrieveCustomPermissions(metadataList, orgName, isProfile, customPermi
   }
 }
 
-function retrieveSessionSetting(metadataList, orgName, profileName, isProfile, sessionSettingMap) {
+function retrieveCustomMetadataTypeAccesses(metadatas, orgName, isProfile, customMetadataTypeAccessMap) {
+  if (!isExecutable(CUSTOM_METADATA_TYPE_ACCESS)) {
+    return;
+  }
+  for (const metadata of metadatas) {
+    log('  Retrieving custom metadata type accesses...');
+    let customMetadataTypeAccesses = metadata.customMetadataTypeAccesses;
+    customMetadataTypeAccesses = [customMetadataTypeAccesses].flat();
+    customMetadataTypeAccesses.forEach(function (customMetadataTypeAccess) {
+      if (!customMetadataTypeAccess) {
+        return;
+      }
+      if (!customMetadataTypeAccessMap.has(customMetadataTypeAccess.name)) {
+        customMetadataTypeAccessMap.set(customMetadataTypeAccess.name, new Map());
+      }
+      const valueMap = customMetadataTypeAccessMap.get(customMetadataTypeAccess.name);
+      const key = getMetadataKey(orgName, isProfile, metadata);
+      valueMap.set(key, customMetadataTypeAccess.enabled);
+    });
+  }
+}
+
+function retrieveCustomSettingAccesses(metadatas, orgName, isProfile, customSettingAccessMap) {
+  if (!isExecutable(CUSTOM_SETTING_ACCESS)) {
+    return;
+  }
+  for (const metadata of metadatas) {
+    log('  Retrieving custom setting accesses...');
+    let customSettingAccesses = metadata.customSettingAccesses;
+    customSettingAccesses = [customSettingAccesses].flat();
+    customSettingAccesses.forEach(function (customSettingAccess) {
+      if (!customSettingAccess) {
+        return;
+      }
+      if (!customSettingAccessMap.has(customSettingAccess.name)) {
+        customSettingAccessMap.set(customSettingAccess.name, new Map());
+      }
+      const valueMap = customSettingAccessMap.get(customSettingAccess.name);
+      const key = getMetadataKey(orgName, isProfile, metadata);
+      valueMap.set(key, customSettingAccess.enabled);
+    });
+  }
+}
+
+function retrieveSessionSetting(metadatas, orgName, profileName, isProfile, sessionSettingMap) {
   if (!isExecutable(SESSION_SETTING)) {
     return;
   }
@@ -986,9 +1099,7 @@ function retrieveSessionSetting(metadataList, orgName, profileName, isProfile, s
     KEY_SESSION_SETTING_SESSION_TIMEOUT,
     KEY_SESSION_SETTING_SESSION_TIMEOUT_WARNING
   ];
-  for (const metadata of metadataList) {
-    loggingWithTargetName(metadata, isProfile, 'Retrieve session setting.');
-
+  for (const metadata of metadatas) {
     for (const settingName of settingNameArray) {
       if (!sessionSettingMap.has(settingName)) {
         sessionSettingMap.set(settingName, new Map());
@@ -999,7 +1110,7 @@ function retrieveSessionSetting(metadataList, orgName, profileName, isProfile, s
   }
 }
 
-function retrievePasswordPolicy(metadataList, orgName, profileName, isProfile, passwordPolicyMap) {
+function retrievePasswordPolicy(metadatas, orgName, profileName, isProfile, passwordPolicyMap) {
   if (!isExecutable(PASSWORD_POLICY)) {
     return;
   }
@@ -1016,9 +1127,7 @@ function retrievePasswordPolicy(metadataList, orgName, profileName, isProfile, p
     KEY_PASSWORD_POLICY_PASSWORD_HISTORY,
     KEY_PASSWORD_POLICY_PASSWORD_QUESTION
   ];
-  for (const metadata of metadataList) {
-    loggingWithTargetName(metadata, isProfile, 'Retrieve password policies.');
-
+  for (const metadata of metadatas) {
     for (const settingName of settingNameArray) {
       if (!passwordPolicyMap.has(settingName)) {
         passwordPolicyMap.set(settingName, new Map());
@@ -1034,49 +1143,49 @@ function retrievePasswordPolicy(metadataList, orgName, profileName, isProfile, p
 }
 
 async function getPermissionSetAPINames(conn) {
-  if (global.permissionSetNameList.length === 0) {
+  if (global.permissionSetNames.length === 0) {
     return [];
   }
   let condition = '(';
-  for (let i = 0; i < global.permissionSetNameList.length; i++) {
-    condition += "'" + global.permissionSetNameList[i] + "'";
-    if (i !== global.permissionSetNameList.length - 1) {
+  for (let i = 0; i < global.permissionSetNames.length; i++) {
+    condition += "'" + global.permissionSetNames[i] + "'";
+    if (i !== global.permissionSetNames.length - 1) {
       condition += ',';
     }
   }
   condition += ')';
 
-  const recordList = [];
+  const records = [];
   await conn.query('SELECT Id, Name, Label, NamespacePrefix FROM PermissionSet WHERE Label IN ' + condition)
-    .on('record', function (record) { recordList.push(record); })
+    .on('record', function (record) { records.push(record); })
     .on('error', function (err) { console.error(err); })
     .run({ autoFetch: true });
   const recordMap = new Map();
-  for (const i in recordList) {
-    if (recordList[i].NamespacePrefix) {
-      recordMap.set(recordList[i].Label, recordList[i].NamespacePrefix + '__' + recordList[i].Name);
+  for (const i in records) {
+    if (records[i].NamespacePrefix) {
+      recordMap.set(records[i].Label, records[i].NamespacePrefix + '__' + records[i].Name);
     } else {
-      recordMap.set(recordList[i].Label, recordList[i].Name);
+      recordMap.set(records[i].Label, records[i].Name);
     }
   }
 
-  const permissionSetAPINameList = [];
-  for (const i in global.permissionSetNameList) {
-    if (recordMap.has(global.permissionSetNameList[i])) {
-      const name = recordMap.get(global.permissionSetNameList[i]);
-      permissionSetAPINameList.push(name);
+  const permissionSetAPINames = [];
+  for (const i in global.permissionSetNames) {
+    if (recordMap.has(global.permissionSetNames[i])) {
+      const name = recordMap.get(global.permissionSetNames[i]);
+      permissionSetAPINames.push(name);
     } else {
-      logging('[Warning]Not exist a permission set. Permission set : ' + global.permissionSetNameList[i]);
+      log('[Warning]Not exist a permission set. Permission set : ' + global.permissionSetNames[i]);
       continue;
     }
   }
 
-  return permissionSetAPINameList;
+  return permissionSetAPINames;
 }
 
 async function compensateObjectsAndFields(conn, objectPermissionMap, fieldLevelSecurityMap, fieldLevelSecurityFieldSet) {
   if (isExecutable(OBJECT_PERMISSION) || isExecutable(FIELD_LEVEL_SECURITY)) {
-    logging('Compensate for object permissions and field-level securities.');
+    log('[Compensating object permissions and field-level security]');
 
     if (global.targetObjectSet.size === 0) {
       for (const key of objectPermissionMap.keys()) {
@@ -1088,10 +1197,10 @@ async function compensateObjectsAndFields(conn, objectPermissionMap, fieldLevelS
     }
 
     for await (const object of global.targetObjectSet) {
-      logging('  object: ' + object);
+      log('  object: ' + object);
       try {
         await conn.describe(object, function (err, metadata) {
-          if (metadata !== undefined) {
+          if (metadata) {
             if (err) {
               console.error(err);
               process.exit(1);
@@ -1145,7 +1254,7 @@ async function compensateObjectsAndFields(conn, objectPermissionMap, fieldLevelS
 
 async function compensateLayoutAssignments(conn, layoutAssignmentMap) {
   if (isExecutable(LAYOUT_ASSIGNMENT)) {
-    logging('Compensate for layout assignments.');
+    log('[Compensating layout assignments]');
     if (global.targetObjectSet.size > 0) {
       for (const key of layoutAssignmentMap.keys()) {
         const object = key.split('-')[0];
@@ -1159,13 +1268,13 @@ async function compensateLayoutAssignments(conn, layoutAssignmentMap) {
 
 async function compensateRecordTypeVisibilities(conn, recordTypeVisibilityMap) {
   if (isExecutable(RECORD_TYPE_VISIBILITY)) {
-    logging('Compensate for record-type visibilities.');
-    const recordList = [];
+    log('[Compensating record-type visibilities]');
+    const records = [];
     await conn.query('SELECT Name, SobjectType, DeveloperName FROM RecordType')
-      .on('record', function (record) { recordList.push(record); })
+      .on('record', function (record) { records.push(record); })
       .on('error', function (err) { console.error(err); })
       .run({ autoFetch: true });
-    for (const record of recordList) {
+    for (const record of records) {
       const key = record.SobjectType + '.' + record.DeveloperName;
       if (!recordTypeVisibilityMap.has(key)) {
         recordTypeVisibilityMap.set(key, new Map());
@@ -1187,13 +1296,13 @@ async function compensateRecordTypeVisibilities(conn, recordTypeVisibilityMap) {
 
 async function compensateApexClassAccesses(conn, apexClassAccessMap) {
   if (isExecutable(APEX_CLASS_ACCESS)) {
-    logging('Compensate for apex class accesses.');
-    const recordList = [];
+    log('[Compensating apex class accesses]');
+    const records = [];
     await conn.query('SELECT Name FROM ApexClass')
-      .on('record', function (record) { recordList.push(record); })
+      .on('record', function (record) { records.push(record); })
       .on('error', function (err) { console.error(err); })
       .run({ autoFetch: true });
-    for (const record of recordList) {
+    for (const record of records) {
       if (!apexClassAccessMap.has(record.Name)) {
         apexClassAccessMap.set(record.Name, new Map());
       }
@@ -1203,13 +1312,13 @@ async function compensateApexClassAccesses(conn, apexClassAccessMap) {
 
 async function compensateApexPageAccesses(conn, apexPageAccessMap) {
   if (isExecutable(APEX_PAGE_ACCESS)) {
-    logging('Compensate for apex page accesses.');
-    const recordList = [];
+    log('[Compensating apex page accesses]');
+    const records = [];
     await conn.query('SELECT Name, MasterLabel FROM ApexPage')
-      .on('record', function (record) { recordList.push(record); })
+      .on('record', function (record) { records.push(record); })
       .on('error', function (err) { console.error(err); })
       .run({ autoFetch: true });
-    for (const record of recordList) {
+    for (const record of records) {
       if (!apexPageAccessMap.has(record.Name)) {
         apexPageAccessMap.set(record.Name, new Map());
       }
@@ -1221,9 +1330,9 @@ async function compensateApexPageAccesses(conn, apexPageAccessMap) {
 
 async function compensateUserPermissions(conn, userPermissionMap) {
   if (isExecutable(USER_PERMISSION)) {
-    logging('Compensate for user permissons.');
+    log('[Compensating user permissons]');
     await conn.sobject('Profile').describe(function (err, metadata) {
-      if (metadata !== undefined) {
+      if (metadata) {
         if (err) {
           console.error(err);
           process.exit(1);
@@ -1246,13 +1355,13 @@ async function compensateUserPermissions(conn, userPermissionMap) {
 
 async function compensateApplicationVisibilities(conn, applicationVisibilityMap) {
   if (isExecutable(APPLICATION_VISIBILITY)) {
-    logging('Compensate for application visibilities.');
-    const recordList = [];
+    log('[Compensating application visibilities]');
+    const records = [];
     await conn.query('SELECT NamespacePrefix, DeveloperName, Label FROM AppDefinition')
-      .on('record', function (record) { recordList.push(record); })
+      .on('record', function (record) { records.push(record); })
       .on('error', function (err) { console.error(err); })
       .run({ autoFetch: true });
-    for (const record of recordList) {
+    for (const record of records) {
       let developerName = '';
       if (record.NamespacePrefix) {
         developerName = record.NamespacePrefix + '__' + record.DeveloperName;
@@ -1271,13 +1380,13 @@ async function compensateApplicationVisibilities(conn, applicationVisibilityMap)
 
 async function compensateTabVisibilities(conn, tabVisibilityMap) {
   if (isExecutable(TAB_VISIBILITY)) {
-    logging('Compensate for tab visibilities.');
-    const recordList = [];
+    log('[Compensating tab visibilities]');
+    const records = [];
     await conn.query('SELECT Name, Label FROM TabDefinition')
-      .on('record', function (record) { recordList.push(record); })
+      .on('record', function (record) { records.push(record); })
       .on('error', function (err) { console.error(err); })
       .run({ autoFetch: true });
-    for (const record of recordList) {
+    for (const record of records) {
       if (!tabVisibilityMap.has(record.Name)) {
         tabVisibilityMap.set(record.Name, new Map());
       }
@@ -1289,13 +1398,13 @@ async function compensateTabVisibilities(conn, tabVisibilityMap) {
 
 async function compensateCustomPermissions(conn, customPermissionMap) {
   if (isExecutable(CUSTOM_PERMISSION)) {
-    logging('Compensate for custom permissions.');
-    const recordList = [];
+    log('[Compensating custom permissions]');
+    const records = [];
     await conn.query('SELECT NamespacePrefix, DeveloperName, MasterLabel FROM CustomPermission')
-      .on('record', function (record) { recordList.push(record); })
+      .on('record', function (record) { records.push(record); })
       .on('error', function (err) { console.error(err); })
       .run({ autoFetch: true });
-    for (const record of recordList) {
+    for (const record of records) {
       let developerName = '';
       if (record.NamespacePrefix) {
         developerName = record.NamespacePrefix + '__' + record.DeveloperName;
@@ -1310,6 +1419,43 @@ async function compensateCustomPermissions(conn, customPermissionMap) {
       valueMap.set(LABEL_KEY_NAME, record.MasterLabel);
     }
   }
+}
+
+async function compensateByEntityDefinition(conn, targetMap, metadataType) {
+  if ((metadataType === CUSTOM_METADATA_TYPE_ACCESS && isExecutable(CUSTOM_METADATA_TYPE_ACCESS)) ||
+      (metadataType === CUSTOM_SETTING_ACCESS && isExecutable(CUSTOM_SETTING_ACCESS))) {
+
+    if (metadataType === CUSTOM_METADATA_TYPE_ACCESS) log('[Compensating custom metadata type accesses]');
+    if (metadataType === CUSTOM_SETTING_ACCESS) log('[Compensating custom setting accesses]');
+    const records = [];
+    if (targetMap.size === 0) {
+      return;
+    }
+    const qualifiedApiNames 
+        = Array.from(targetMap.keys()).map((target) => { return '\'' + target + '\'';}).join(',');
+    await conn.tooling.query(
+      'SELECT NamespacePrefix, QualifiedApiName, Label FROM EntityDefinition WHERE QualifiedApiName IN (' + qualifiedApiNames + ')')
+      .on('record', function (record) { records.push(record); })
+      .on('error', function (err) { console.error(err); })
+      .run({ autoFetch: true });
+    for (const record of records) {
+      let developerName = '';
+      if (record.NamespacePrefix) {
+        developerName = record.NamespacePrefix + '__' + record.QualifiedApiName;
+      } else {
+        developerName = record.QualifiedApiName;
+      }
+
+      if (!targetMap.has(developerName)) {
+        targetMap.set(developerName, new Map());
+      }
+      const valueMap = targetMap.get(developerName);
+      valueMap.set(LABEL_KEY_NAME, record.Label);
+    }
+  }
+}
+
+async function compensateCustomSettingAccesses(conn, customSettingAccessMap) {
 }
 
 async function compensateSessionSetting(conn, sessionSettingMap) {
@@ -1356,49 +1502,47 @@ function loadYamlFile(filename) {
     process.exit(1);
   }
   const yamlText = fs.readFileSync(filename, 'utf8');
-  return yaml.safeLoad(yamlText);
+  return yaml.load(yamlText);
 }
 
 function loadAppConfig() {
   let appConfigPathWork = global.userConfig.appConfigPath;
-  if (appConfigPathWork === undefined) {
+  if (!appConfigPathWork) {
     appConfigPathWork = DEFAULT_APP_CONFIG_PATH;
   }
 
-  const path = require('path');
   const config = loadYamlFile(path.join(__dirname, appConfigPathWork));
   global.appConfig = config;
 }
 
 function loadUserConfig(userConfigPath) {
   let userConfigPathWork = userConfigPath;
-  if (userConfigPathWork === undefined) {
+  if (!userConfigPathWork) {
     userConfigPathWork = DEFAULT_USER_CONFIG_PATH;
   }
-  const path = require('path');
   const config = loadYamlFile(path.join(__dirname, userConfigPathWork));
   global.userConfig = config;
 
-  const targetNameList = [];
-  const profileNameList = [];
-  const permissionSetNameList = [];
+  const targetNames = [];
+  const profileNames = [];
+  const permissionSetNames = [];
   for (const target of config.target) {
     if (target.ps) {
-      permissionSetNameList.push(target.name);
-      targetNameList.push(PREFIX_PERMISSION_SET_NAME + target.name);
+      permissionSetNames.push(target.name);
+      targetNames.push(PREFIX_PERMISSION_SET_NAME + target.name);
     } else {
-      profileNameList.push(target.name);
-      targetNameList.push(PREFIX_PROFILE_NAME + target.name);
+      profileNames.push(target.name);
+      targetNames.push(PREFIX_PROFILE_NAME + target.name);
     }
   }
-  global.targetNameList = targetNameList;
-  global.profileNameList = profileNameList;
-  global.permissionSetNameList = permissionSetNameList;
+  global.targetNames = targetNames;
+  global.profileNames = profileNames;
+  global.permissionSetNames = permissionSetNames;
 
   const settingTypeSet = new Set();
-  const settingTypeList = config.settingType;
-  if (settingTypeList !== undefined) {
-    for (const settingType of settingTypeList) {
+  const settingTypes = config.settingType;
+  if (settingTypes) {
+    for (const settingType of settingTypes) {
       settingTypeSet.add(settingType);
     }
   }
@@ -1406,14 +1550,14 @@ function loadUserConfig(userConfigPath) {
 
   const targetObjectSet = new Set();
   const userConfigObject = config.object;
-  if (userConfigObject !== undefined) {
+  if (userConfigObject) {
     for (const i in userConfigObject) {
       targetObjectSet.add(userConfigObject[i]);
     }
   }
   global.targetObjectSet = targetObjectSet;
 
-  const orgList = [];
+  const orgs = [];
   for (const org of config.org) {
     const orgInfo = new _orgInfo(
       org.name,
@@ -1422,9 +1566,9 @@ function loadUserConfig(userConfigPath) {
       org.userName,
       org.password
     );
-    orgList.push(orgInfo);
+    orgs.push(orgInfo);
   }
-  global.orgList = orgList;
+  global.orgs = orgs;
 }
 
 function _orgInfo(name, loginUrl, apiVersion, userName, password) {
@@ -1435,61 +1579,41 @@ function _orgInfo(name, loginUrl, apiVersion, userName, password) {
   this.password = password;
 }
 
-function getTemplateStyleList(sheet) {
-  const endColNum = sheet.usedRange().endCell().columnNumber();
-  const xlsxTemplateStyleList = [];
+function getTemplateStyles(sheet) {
   const appConfig = global.appConfig;
-  for (let i = 1; i <= endColNum; i++) {
-    const style = sheet.cell(appConfig.resultPosition[1], i).style([
-      'bold',
-      'italic',
-      'underline',
-      'strikethrough',
-      'subscript',
-      'superscript',
-      'fontSize',
-      'fontFamily',
-      'fontColor',
-      'horizontalAlignment',
-      'justifyLastLine',
-      'indent',
-      'verticalAlignment',
-      'wrapText',
-      'shrinkToFit',
-      'textDirection',
-      'textRotation',
-      'angleTextCounterclockwise',
-      'angleTextClockwise',
-      'rotateTextUp',
-      'rotateTextDown',
-      'verticalText',
-      'fill',
-      'border',
-      'borderColor',
-      'borderStyle',
-      'diagonalBorderDirection',
-      'numberFormat'
-    ]);
-    xlsxTemplateStyleList.push(style);
+  const templateStyles = [];
+  for (let i = 1; i <= MAX_EXPLORE_COLS; i++) {
+    const cell = sheet.getCell(appConfig.resultPosition[1], i);
+    if (!cell.font) break;
+    const style = {
+      font: cell.font,
+      alignment: cell.alignment,
+      border: cell.border,
+      fill: cell.fill,
+    }
+    templateStyles.push(style);
   }
 
-  return xlsxTemplateStyleList;
+  return templateStyles;
 }
 
-function putTemplateStyle(sheet, xlsxTemplateStyleList, cellY) {
-  for (let i = 0; i < xlsxTemplateStyleList.length; i++) {
-    const cell = sheet.cell(cellY, i + 1);
-    cell.style(xlsxTemplateStyleList[i]);
+function putTemplateStyle(sheet, templateStyles, cellY) {
+  for (let i = 0; i < templateStyles.length; i++) {
+    const cell = sheet.getCell(cellY, i + 1);
+    cell.font = templateStyles[i].font;
+    cell.alignment = templateStyles[i].alignment;
+    cell.border = templateStyles[i].border;
+    cell.fill = templateStyles[i].fill;
   }
 }
 
-function putFirstFrameStyle(sheet, xlsxTemplateStyleList, cellY) {
+function putFirstFrameStyle(sheet, templateStyles, cellY) {
   if (global.appConfig.boundaryTopBorderOn === true) {
-    for (let i = 0; i < xlsxTemplateStyleList.length; i++) {
-      const cell = sheet.cell(cellY, i + 1);
-      cell.style('topBorder', 'true');
-      cell.style('topBorderColor', global.appConfig.boundaryTopBorderColor);
-      cell.style('topBorderStyle', global.appConfig.boundaryTopBorderStyle);
+    for (let i = 0; i < templateStyles.length; i++) {
+      const cell = sheet.getCell(cellY, i + 1);
+      let border = {...templateStyles[i].border};
+      border.top = {style: global.appConfig.boundaryTopBorderStyle, color: {argb: global.appConfig.boundaryTopBorderColor}};
+      cell.border = border;
     }
   }
 }
@@ -1526,24 +1650,25 @@ function isExecutable(settingType) {
   return false;
 }
 
-function logging(message) {
-  _logging(message);
+function log(message) {
+  _log(message);
 }
 
-function loggingWithTargetName(metadata, isProfile, message) {
+function logWithTargetName(metadata, isProfile, message) {
   let modifyMessage = '';
   if (isProfile) {
     modifyMessage = '[Profile:' + metadata.fullName + '] ' + message;
   } else {
     modifyMessage = '[PermissionSet:' + metadata.label + '] ' + message;
   }
-  _logging(modifyMessage);
+  _log(modifyMessage);
 }
 
-function _logging(message) {
+function _log(message) {
   if (global.enabledLogging) {
-    const nowDate = new Date();
-    console.log('[' + getFormattedDateTime(nowDate) + '] ' + message);
+//    const nowDate = new Date();
+//    console.log('[' + getFormattedDateTime(nowDate) + '] ' + message);
+    console.log(message);
   }
 }
 

@@ -24,7 +24,10 @@ Salesforceのプロファイルと権限セットの設定値をExcelに出力�
 * 有効なApexクラス
 * 有効なVisualForceページアクセス
 * 有効なカスタム権限
+* 有効なカスタムメタデータ型
+* 有効なカスタム設定の定義
 * ログインIPアドレス制限
+* ログイン可能時間
 * セッション設定
 * パスワードポリシー
 
@@ -54,12 +57,12 @@ user_configを開き、組織名、ログインURL、ユーザ名、パスワー
 org:
   - name: (任意の組織名1)
     loginUrl: "https://test.salesforce.com"
-    apiVersion : "56.0"
+    apiVersion : "62.0"
     userName: "(ユーザ名)"
     password: "(パスワード)"
 #  - name: (任意の組織名2)
 #    loginUrl: "https://login.salesforce.com"
-#    apiVersion : "56.0"
+#    apiVersion : "62.0"
 #    userName: "(ユーザ名)"
 #    password: "(パスワード)"
 ```
@@ -86,7 +89,10 @@ settingType: [
   "ApexClassAccess",
   "ApexPageAccess",
   "CustomPermission",
+  "CustomMetadataTypeAccess",
+  "CustomSettingAccess",
   "LoginIpRange",
+  "LoginHour",
   "SessionSetting",
   "PasswordPolicy"
 ]
@@ -110,26 +116,49 @@ $ node compare-permissions.js
 ```
 実行中のログが画面に出力されます。
 ```
-[2022/11/27 19:55:24] Settings:
-[2022/11/27 19:55:24]   AppConfigPath:app_config_ja.yaml
-[2022/11/27 19:55:24]   TemplateFilePath:template_ja.xlsx
-[2022/11/27 19:55:24]   ResultFilePath:result.xlsx
-[2022/11/27 19:55:24]   ExcelFormatCopy:true
-[2022/11/27 19:55:24]   TargetProfiles/PermissionSets:カスタムシステム管理者,カスタム一般ユーザ,営業ユーザ(PS)
-[2022/11/27 19:55:24]   TargetSettingTypes:ObjectPermission,LayoutAssignment,RecordTypeVisibility,UserPermission,ApplicationVisibility,TabVisibility,ApexClassAccess,ApexPageAccess,CustomPermission,LoginIpRange,SessionSetting,PasswordPolicy
-[2022/11/27 19:55:24]   TargetObjects:undefined
-[2022/11/27 19:55:24] **** Start to retrieve ****
-[2022/11/27 19:55:24] OrgInfo:
-[2022/11/27 19:55:24]   Name:(YOUR ORG NAME)
-[2022/11/27 19:55:24]   LoginUrl:https://login.salesforce.com
-[2022/11/27 19:55:24]   ApiVersion:56.0
-[2022/11/27 19:55:24]   UserName:(YOUR USER NAME)
-[2022/11/27 19:55:32] [Profile:カスタムシステム管理者] Retrieve base info.
-[2022/11/27 19:55:32] [Profile:カスタムシステム管理者] Retrieve object permissions.
-[2022/11/27 19:55:32] [Profile:カスタムシステム管理者] Retrieve layout assignments.
+[Settings]
+  AppConfigPath: app_config_ja.yaml
+  TemplateFilePath: template_ja.xlsx
+  ResultFilePath: result.xlsx
+  TargetProfiles/PermissionSets:
+    カスタムシステム管理者
+    カスタム一般ユーザ
+    営業ユーザ(PS)
+  TargetSettingTypes:
+    ObjectPermission
+    FieldLevelSecurity
+    :
+    PasswordPolicy
+  TargetObjects:
+    Account
+    Contact
+    Opportunity
+    User
+
+[OrgInfo]
+  Name:(YOUR ORG NAME)
+  LoginUrl:https://login.salesforce.com
+  ApiVersion:62.0
+  UserName:(YOUR USER NAME)
+[Processing profile: カスタムシステム管理者]
+  Retrieving base info...
+  Retrieving object permissions...
+  Retrieving field-level security...
+  Retrieving layout assignments...
+  Retrieving record-type visibilities...
+  Retrieving apex class accesses...
+  Retrieving apex page accesses...
+  Retrieving user permissions...
+  Retrieving application visibilities...
+  Retrieving tab visibilities...
+  Retrieving login IP ranges...
+  Retrieving login hours...
+  Retrieving custom permissions...
+  Retrieving custom metadata type accesses...
+  Retrieving custom setting accesses...
 :
-[2022/11/27 19:57:46] Export to an excel file.
-[2022/11/27 19:57:56] Done.
+[Exporting to an Excel file: result.xlsx]
+Done.
 ```
 実行が完了すれば、結果のExcelファイルが出力されます。(デフォルトは"./result.xlsx")
 
@@ -143,9 +172,6 @@ usage: compare-permissions.js [-options]
 
 ## 注意事項
 - 各ラベルは可能な限り出力していますが、一部のラベルは出力されていません。
-- Excelの出力行が大量になった場合は、Excelを開く際にエラーが発生する場合があります。その場合は以下のいずれかを試してください。
-  - user_config.yamlの'excelFormatCopy'をfalseに変更する。
-  - 別のuser_config.yamlを作成し、出力行が多い'settingType'のみに絞ってください。(FieldLevelSecurityなど)
 - セッション設定は一部の設定のみを出力しています。
 - 接続ユーザのプロファイルに高保証が設定されている場合、接続に失敗します。
 
