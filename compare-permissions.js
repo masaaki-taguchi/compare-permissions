@@ -206,7 +206,7 @@ if (userConfig.object) {
           console.error(err);
           process.exit(1);
         }
-        metadatas = [metadatas].flat();
+        metadatas = [metadatas].flat().filter(Boolean);
         for (const metadata of metadatas) {
           sessionSettings.push(metadata.fullName);
         }
@@ -242,7 +242,7 @@ if (userConfig.object) {
           console.error(err);
           process.exit(1);
         }
-        metadatas = [metadatas].flat();
+        metadatas = [metadatas].flat().filter(Boolean);
         for (const metadata of metadatas) {
           passwordPolicies.push(metadata.fullName);
         }
