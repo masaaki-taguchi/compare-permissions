@@ -1,6 +1,6 @@
 {
   "name": "compare-permissions",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Salesforce's profile and permission set settings exporter to Excel and compare",
   "main": "compare-permissions.js",
   "scripts": {
