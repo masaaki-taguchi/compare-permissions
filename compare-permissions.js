@@ -140,54 +140,66 @@ if (userConfig.object) {
   const passwordPolicyMap = new Map();
 
   for (const org of global.orgs) {
+    let conn;
     const orgName = org.name;
     log('');
     log('[OrgInfo]');
     log('  Name:' + org.name)
-    log('  LoginUrl:' + org.loginUrl)
-    log('  ApiVersion:' + org.apiVersion)
-    log('  UserName:' + org.userName);
-    let conn = new jsforce.Connection({ loginUrl: org.loginUrl, version: org.apiVersion });
-    // login to salesforce
-    await conn.login(org.userName, org.password, function (err, userInfo) {
-      if (err) {
-        console.error(err);
-        process.exit(1);
-      }
-    });
+
+    if (org.clientId && org.clientSecret && org.instanceUrl) {
+      log('  InstanceUrl:' + org.instanceUrl)
+      log('  ApiVersion:' + org.apiVersion)
+      conn = new jsforce.Connection({
+        oauth2: { 
+          clientId : org.clientId,
+          clientSecret : org.clientSecret,
+          loginUrl: org.instanceUrl
+        },
+        version: org.apiVersion
+      });
+      // authorize with salesforce using OAuth
+      const userInfo = await conn.authorize({ grant_type: "client_credentials" })
+    } else {
+      log('  LoginUrl:' + org.loginUrl)
+      log('  ApiVersion:' + org.apiVersion)
+      log('  UserName:' + org.userName);
+      conn = new jsforce.Connection({ loginUrl: org.loginUrl, version: org.apiVersion });
+      // login to salesforce using SOAP API
+      await conn.login(org.userName, org.password);
+    }
 
     // retrieve metadata in profiles
     if (global.profileNames.length !== 0) {
       for await (const profileName of global.profileNames) {
         const profileNames = [];
         profileNames.push(profileName);
-        await conn.metadata.read(METADATA_TYPE_PROFILE, profileNames, function (err, metadatas) {
-          if (err) {
-            console.error(err);
-            process.exit(1);
-          }
-          log('[Processing profile: ' + profileName + ']');
-          metadatas = [metadatas].flat();
-          if (Object.keys(metadatas[0]).length === 0) {
-            log('  Unable to find a profile.');
-            return;
-          }
-          retrieveBaseInfo(metadatas, orgName, true, baseInfoMap);
-          retrieveObjectPermissions(metadatas, orgName, true, objectPermissionMap);
-          retrievefieldLevelSecurities(metadatas, orgName, true, fieldLevelSecurityMap, fieldLevelSecurityFieldSet);
-          retrieveLayoutAssignments(metadatas, orgName, true, layoutAssignmentMap);
-          retrieveRecordTypeVisibilities(metadatas, orgName, true, recordTypeVisibilityMap);
-          retrieveApexClassAccesses(metadatas, orgName, true, apexClassAccessMap);
-          retrieveApexPageAccesses(metadatas, orgName, true, apexPageAccessMap);
-          retrieveUserPermissions(metadatas, orgName, true, userPermissionMap);
-          retrieveApplicationVisibilities(metadatas, orgName, true, applicationVisibilityMap);
-          retrieveTabVisibilities(metadatas, orgName, true, tabVisibilityMap);
-          retrieveLoginIpRanges(metadatas, orgName, true, loginIpRangeMap);
-          retrieveLoginHours(metadatas, orgName, true, loginHourMap);
-          retrieveCustomPermissions(metadatas, orgName, true, customPermissionMap);
-          retrieveCustomMetadataTypeAccesses(metadatas, orgName, true, customMetadataTypeAccessMap);
-          retrieveCustomSettingAccesses(metadatas, orgName, true, customSettingAccessMap);
-        });
+        try {
+            let metadatas = await conn.metadata.read(METADATA_TYPE_PROFILE, profileNames);
+            log('[Processing profile: ' + profileName + ']');
+            metadatas = [metadatas].flat();
+            if (Object.keys(metadatas[0]).length === 0) {
+              log('  Unable to find a profile.');
+              return;
+            }
+            retrieveBaseInfo(metadatas, orgName, true, baseInfoMap);
+            retrieveObjectPermissions(metadatas, orgName, true, objectPermissionMap);
+            retrievefieldLevelSecurities(metadatas, orgName, true, fieldLevelSecurityMap, fieldLevelSecurityFieldSet);
+            retrieveLayoutAssignments(metadatas, orgName, true, layoutAssignmentMap);
+            retrieveRecordTypeVisibilities(metadatas, orgName, true, recordTypeVisibilityMap);
+            retrieveApexClassAccesses(metadatas, orgName, true, apexClassAccessMap);
+            retrieveApexPageAccesses(metadatas, orgName, true, apexPageAccessMap);
+            retrieveUserPermissions(metadatas, orgName, true, userPermissionMap);
+            retrieveApplicationVisibilities(metadatas, orgName, true, applicationVisibilityMap);
+            retrieveTabVisibilities(metadatas, orgName, true, tabVisibilityMap);
+            retrieveLoginIpRanges(metadatas, orgName, true, loginIpRangeMap);
+            retrieveLoginHours(metadatas, orgName, true, loginHourMap);
+            retrieveCustomPermissions(metadatas, orgName, true, customPermissionMap);
+            retrieveCustomMetadataTypeAccesses(metadatas, orgName, true, customMetadataTypeAccessMap);
+            retrieveCustomSettingAccesses(metadatas, orgName, true, customSettingAccessMap);
+        } catch (err) {
+          console.log(err)
+          process.exit(1);
+        }
       }
     }
 
@@ -201,24 +213,21 @@ if (userConfig.object) {
     if (global.profileNames.length !== 0 && isExecutable(SESSION_SETTING)) {
       const types = [{ type: METADATA_TYPE_SESSION_SETTING, folder: null }];
       const sessionSettings = [];
-      await conn.metadata.list(types, org.apiVersion, function (err, metadatas) {
-        if (err) {
-          console.error(err);
-          process.exit(1);
-        }
+      try {
+        let metadatas = await conn.metadata.list(types, org.apiVersion);
         metadatas = [metadatas].flat().filter(Boolean);
         for (const metadata of metadatas) {
           sessionSettings.push(metadata.fullName);
         }
-      });
+      } catch (err) {
+        console.log(err)
+        process.exit(1);
+      }
 
       log('[Processing session setting]');
       for await (const sessionSetting of sessionSettings) {
-        await conn.metadata.read(METADATA_TYPE_SESSION_SETTING, [sessionSetting], function (err, metadatas) {
-          if (err) {
-            console.error(err);
-            process.exit(1);
-          }
+        try {
+          let metadatas = await conn.metadata.read(METADATA_TYPE_SESSION_SETTING, [sessionSetting]);
           metadatas = [metadatas].flat();
           if (Object.keys(metadatas[0]).length === 0) {
             log('  Unable to find a session setting: ' + sessionSetting);
@@ -229,7 +238,10 @@ if (userConfig.object) {
             log('  profile: ' + profileName + ' sessionSetting: ' + sessionSetting);
             retrieveSessionSetting(metadatas, orgName, profileNameMap.get(profileName), true, sessionSettingMap);
           }
-        });
+        } catch (err) {
+          console.log(err)
+          process.exit(1);
+        }
       }
     }
 
@@ -237,24 +249,21 @@ if (userConfig.object) {
     if (global.profileNames.length !== 0 && isExecutable(PASSWORD_POLICY)) {
       const types = [{ type: METADATA_TYPE_PASSWORD_POLICY, folder: null }];
       const passwordPolicies = [];
-      await conn.metadata.list(types, org.apiVersion, function (err, metadatas) {
-        if (err) {
-          console.error(err);
-          process.exit(1);
-        }
+      try {
+        let metadatas = await conn.metadata.list(types, org.apiVersion);
         metadatas = [metadatas].flat().filter(Boolean);
         for (const metadata of metadatas) {
           passwordPolicies.push(metadata.fullName);
         }
-      });
+      } catch (err) {
+        console.log(err)
+        process.exit(1);
+      }
 
       log('[Processing password policy]');
       for await (const passwordPolicy of passwordPolicies) {
-        await conn.metadata.read(METADATA_TYPE_PASSWORD_POLICY, [passwordPolicy], function (err, metadatas) {
-          if (err) {
-            console.error(err);
-            process.exit(1);
-          }
+        try {
+          let metadatas = await conn.metadata.read(METADATA_TYPE_PASSWORD_POLICY, [passwordPolicy]);
           metadatas = [metadatas].flat();
           if (Object.keys(metadatas[0]).length === 0) {
             log('  Unable to find a password policy: ' + passwordPolicy);
@@ -265,7 +274,10 @@ if (userConfig.object) {
             log('  profile: ' + profileName + ' password policy: ' + passwordPolicy);
             retrievePasswordPolicy(metadatas, orgName, profileNameMap.get(profileName), true, passwordPolicyMap);
           }
-        });
+        } catch (err) {
+          console.log(err)
+          process.exit(1);
+        }
       }
     }
 
@@ -273,11 +285,8 @@ if (userConfig.object) {
       // retrieve metadata in permission set
       const permissionSetAPINames = await getPermissionSetAPINames(conn);
       for await (const permissionSetAPIName of permissionSetAPINames) {
-        await conn.metadata.read(METADATA_TYPE_PERMISSION_SET, [permissionSetAPIName], function (err, metadatas) {
-          if (err) {
-            console.error(err);
-            process.exit(1);
-          }
+        try {
+          let metadatas = await conn.metadata.read(METADATA_TYPE_PERMISSION_SET, [permissionSetAPIName]);
           metadatas = [metadatas].flat();
 
           log('[Processing permission set: ' + permissionSetAPIName + ']');
@@ -294,7 +303,10 @@ if (userConfig.object) {
           retrieveCustomPermissions(metadatas, orgName, false, customPermissionMap);
           retrieveCustomMetadataTypeAccesses(metadatas, orgName, false, customMetadataTypeAccessMap);
           retrieveCustomSettingAccesses(metadatas, orgName, false, customSettingAccessMap);
-        });
+        } catch (err) {
+          console.log(err)
+          process.exit(1);
+        }
       }
     }
 
@@ -312,9 +324,7 @@ if (userConfig.object) {
     await compensateSessionSetting(conn, sessionSettingMap);
     await compensatePasswordPolicy(conn, passwordPolicyMap);
 
-    await conn.logout(function(err) {
-      if (err) { return console.error(err); }
-    });
+    await conn.logout();
 
   }
 
@@ -545,6 +555,7 @@ if (userConfig.object) {
             const key = org.name + '.' + targetName;
             if (valueMap.has(key)) {
               value = valueMap.get(key);
+              value = String(value);
               if (value !== undefined) {
                 if (fullAuthorityValue.length > 0 && value.match(new RegExp(fullAuthorityValue))) {
                   styleFill(cell, appConfig.fullAuthorityColor);
@@ -676,6 +687,7 @@ function retrieveObjectPermissions(metadatas, orgName, isProfile, objectPermissi
       if (isTrue(objectPermission.allowDelete)) value += appConfig.objectPermissionsLabel.delete;
       if (isTrue(objectPermission.viewAllRecords)) value += appConfig.objectPermissionsLabel.viewAll;
       if (isTrue(objectPermission.modifyAllRecords)) value += appConfig.objectPermissionsLabel.modifyAll;
+      if (isTrue(objectPermission.viewAllFields)) value += appConfig.objectPermissionsLabel.viewAllFields;
       const key = getMetadataKey(orgName, isProfile, metadata);
       valueMap.set(key, value);
     });
@@ -1105,7 +1117,7 @@ function retrieveSessionSetting(metadatas, orgName, profileName, isProfile, sess
         sessionSettingMap.set(settingName, new Map());
       }
       const valueMap = sessionSettingMap.get(settingName);
-      valueMap.set(key, metadata[settingName]);
+      valueMap.set(key, metadata[settingName] ?? '');
     }
   }
 }
@@ -1158,7 +1170,7 @@ async function getPermissionSetAPINames(conn) {
   const records = [];
   await conn.query('SELECT Id, Name, Label, NamespacePrefix FROM PermissionSet WHERE Label IN ' + condition)
     .on('record', function (record) { records.push(record); })
-    .on('error', function (err) { console.error(err); })
+    .on('error', function (err) { console.error(err); process.exit(1); })
     .run({ autoFetch: true });
   const recordMap = new Map();
   for (const i in records) {
@@ -1199,48 +1211,44 @@ async function compensateObjectsAndFields(conn, objectPermissionMap, fieldLevelS
     for await (const object of global.targetObjectSet) {
       log('  object: ' + object);
       try {
-        await conn.describe(object, function (err, metadata) {
-          if (metadata) {
-            if (err) {
-              console.error(err);
-              process.exit(1);
+        const metadata = await conn.describe(object);
+        if (metadata) {
+          if (isExecutable(OBJECT_PERMISSION)) {
+            if (!objectPermissionMap.has(metadata.name)) {
+              objectPermissionMap.set(metadata.name, new Map());
             }
-            if (isExecutable(OBJECT_PERMISSION)) {
-              if (!objectPermissionMap.has(metadata.name)) {
-                objectPermissionMap.set(metadata.name, new Map());
-              }
-              const valueMap = objectPermissionMap.get(metadata.name);
-              valueMap.set(LABEL_KEY_NAME, metadata.label);
-            }
+            const valueMap = objectPermissionMap.get(metadata.name);
+            valueMap.set(LABEL_KEY_NAME, metadata.label);
+          }
 
-            if (isExecutable(FIELD_LEVEL_SECURITY)) {
-              for (const i in metadata.fields) {
-                if (!fieldLevelSecurityFieldSet.has(metadata.name + '.' + metadata.fields[i].name)) {
-                  continue;
-                }
-                if (metadata.name === 'User' && !metadata.fields[i].name.includes('__c')) {
-                  continue;
-                }
-                if (metadata.name === 'Account' && metadata.fields[i].name.includes('__pc')) {
-                  continue;
-                }
-                if (!metadata.fields[i].label) {
-                  continue;
-                }
-                const key = metadata.name + '.' + metadata.fields[i].name;
-                if (!fieldLevelSecurityMap.has(key)) {
-                  fieldLevelSecurityMap.set(key, new Map());
-                }
-                const value = fieldLevelSecurityMap.get(key);
-                value.set(LABEL_KEY_NAME, metadata.label + '.' + metadata.fields[i].label);
+          if (isExecutable(FIELD_LEVEL_SECURITY)) {
+            for (const i in metadata.fields) {
+              if (!fieldLevelSecurityFieldSet.has(metadata.name + '.' + metadata.fields[i].name)) {
+                continue;
               }
+              if (metadata.name === 'User' && !metadata.fields[i].name.includes('__c')) {
+                continue;
+              }
+              if (metadata.name === 'Account' && metadata.fields[i].name.includes('__pc')) {
+                continue;
+              }
+              if (!metadata.fields[i].label) {
+                continue;
+              }
+              const key = metadata.name + '.' + metadata.fields[i].name;
+              if (!fieldLevelSecurityMap.has(key)) {
+                fieldLevelSecurityMap.set(key, new Map());
+              }
+              const value = fieldLevelSecurityMap.get(key);
+              value.set(LABEL_KEY_NAME, metadata.label + '.' + metadata.fields[i].label);
             }
           }
-        });
-      } catch (e) {
+        }
+      } catch (err) {
         // some objects raise exceptions, so ignore them
-        if (e.message !== 'The requested resource does not exist') {
-          throw e;
+        if (err.message !== 'The requested resource does not exist') {
+          console.error(err);
+          process.exit(1);
         }
       }
     }
@@ -1272,7 +1280,7 @@ async function compensateRecordTypeVisibilities(conn, recordTypeVisibilityMap) {
     const records = [];
     await conn.query('SELECT Name, SobjectType, DeveloperName FROM RecordType')
       .on('record', function (record) { records.push(record); })
-      .on('error', function (err) { console.error(err); })
+      .on('error', function (err) { console.error(err); process.exit(1); })
       .run({ autoFetch: true });
     for (const record of records) {
       const key = record.SobjectType + '.' + record.DeveloperName;
@@ -1300,7 +1308,7 @@ async function compensateApexClassAccesses(conn, apexClassAccessMap) {
     const records = [];
     await conn.query('SELECT Name FROM ApexClass')
       .on('record', function (record) { records.push(record); })
-      .on('error', function (err) { console.error(err); })
+      .on('error', function (err) { console.error(err); process.exit(1); })
       .run({ autoFetch: true });
     for (const record of records) {
       if (!apexClassAccessMap.has(record.Name)) {
@@ -1316,7 +1324,7 @@ async function compensateApexPageAccesses(conn, apexPageAccessMap) {
     const records = [];
     await conn.query('SELECT Name, MasterLabel FROM ApexPage')
       .on('record', function (record) { records.push(record); })
-      .on('error', function (err) { console.error(err); })
+      .on('error', function (err) { console.error(err); process.exit(1); })
       .run({ autoFetch: true });
     for (const record of records) {
       if (!apexPageAccessMap.has(record.Name)) {
@@ -1331,12 +1339,9 @@ async function compensateApexPageAccesses(conn, apexPageAccessMap) {
 async function compensateUserPermissions(conn, userPermissionMap) {
   if (isExecutable(USER_PERMISSION)) {
     log('[Compensating user permissons]');
-    await conn.sobject('Profile').describe(function (err, metadata) {
+    try {
+      const metadata = await conn.sobject('Profile').describe();
       if (metadata) {
-        if (err) {
-          console.error(err);
-          process.exit(1);
-        }
         for (const i in metadata.fields) {
           let key = metadata.fields[i].name;
           if (!key.indexOf('Permissions')) {
@@ -1349,7 +1354,10 @@ async function compensateUserPermissions(conn, userPermissionMap) {
           }
         }
       }
-    });
+    } catch (err) {
+      console.error(err);
+      process.exit(1);
+    }
   }
 }
 
@@ -1359,7 +1367,7 @@ async function compensateApplicationVisibilities(conn, applicationVisibilityMap)
     const records = [];
     await conn.query('SELECT NamespacePrefix, DeveloperName, Label FROM AppDefinition')
       .on('record', function (record) { records.push(record); })
-      .on('error', function (err) { console.error(err); })
+      .on('error', function (err) { console.error(err); process.exit(1); })
       .run({ autoFetch: true });
     for (const record of records) {
       let developerName = '';
@@ -1384,7 +1392,7 @@ async function compensateTabVisibilities(conn, tabVisibilityMap) {
     const records = [];
     await conn.query('SELECT Name, Label FROM TabDefinition')
       .on('record', function (record) { records.push(record); })
-      .on('error', function (err) { console.error(err); })
+      .on('error', function (err) { console.error(err); process.exit(1); })
       .run({ autoFetch: true });
     for (const record of records) {
       if (!tabVisibilityMap.has(record.Name)) {
@@ -1402,7 +1410,7 @@ async function compensateCustomPermissions(conn, customPermissionMap) {
     const records = [];
     await conn.query('SELECT NamespacePrefix, DeveloperName, MasterLabel FROM CustomPermission')
       .on('record', function (record) { records.push(record); })
-      .on('error', function (err) { console.error(err); })
+      .on('error', function (err) { console.error(err); process.exit(1); })
       .run({ autoFetch: true });
     for (const record of records) {
       let developerName = '';
@@ -1436,7 +1444,7 @@ async function compensateByEntityDefinition(conn, targetMap, metadataType) {
     await conn.tooling.query(
       'SELECT NamespacePrefix, QualifiedApiName, Label FROM EntityDefinition WHERE QualifiedApiName IN (' + qualifiedApiNames + ')')
       .on('record', function (record) { records.push(record); })
-      .on('error', function (err) { console.error(err); })
+      .on('error', function (err) { console.error(err); process.exit(1); })
       .run({ autoFetch: true });
     for (const record of records) {
       let developerName = '';
@@ -1564,19 +1572,25 @@ function loadUserConfig(userConfigPath) {
       org.loginUrl,
       org.apiVersion,
       org.userName,
-      org.password
+      org.password,
+      org.clientId,
+      org.clientSecret,
+      org.instanceUrl,
     );
     orgs.push(orgInfo);
   }
   global.orgs = orgs;
 }
 
-function _orgInfo(name, loginUrl, apiVersion, userName, password) {
+function _orgInfo(name, loginUrl, apiVersion, userName, password, clientId, clientSecret, instanceUrl) {
   this.name = name;
   this.loginUrl = loginUrl;
   this.apiVersion = apiVersion;
   this.userName = userName;
   this.password = password;
+  this.clientId = clientId;
+  this.clientSecret = clientSecret;
+  this.instanceUrl = instanceUrl;
 }
 
 function getTemplateStyles(sheet) {
@@ -1628,7 +1642,7 @@ function usage() {
 
 function convertBoolean(value) {
   let result = '';
-  if (value === METADATA_TRUE) {
+  if (value === METADATA_TRUE || value === true) {
     result = global.appConfig.trueLabel;
   } else {
     result = global.appConfig.falseLabel;
@@ -1637,7 +1651,7 @@ function convertBoolean(value) {
 }
 
 function isTrue(value) {
-  return value === METADATA_TRUE;
+  return value === METADATA_TRUE || value === true;
 }
 
 function isExecutable(settingType) {

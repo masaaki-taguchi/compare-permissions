@@ -52,17 +52,32 @@ $ npm ci
 ```
 
 ## 設定ファイルの編集
-user_configを開き、組織名、ログインURL、ユーザ名、パスワードを環境に合わせて変更します。
+user_config.yamlを開き、組織名、インスタンスURL、コンシューマー鍵、コンシューマーの秘密を環境に合わせて変更します。組織への接続には、外部クライアントアプリケーションでクライアント資格情報フローのOAuth接続定義を作成する必要があります。OAuth設定時のOAuth範囲はapiのみで問題ありません。
+```
+org:
+  - name: (任意の組織名1)
+    instanceUrl: "https://(任意のドメイン名).my.salesforce.com"
+    apiVersion : "65.0"
+    clientId: "(任意のコンシューマー鍵)"
+    clientSecret: "(任意のコンシューマーの秘密)"
+#  - name: (任意の組織名2)
+#    instanceUrl: "https://(任意のドメイン名).my.salesforce.com"
+#    apiVersion : "65.0"
+#    clientId: "(任意のコンシューマー鍵)"
+#    clientSecret: "(任意のコンシューマーの秘密)"
+```
+
+以下はSOAPログインで接続する場合の設定です。APIバージョン64.0まで、かつSummer'27まで有効です。
 ```
 org:
   - name: (任意の組織名1)
     loginUrl: "https://test.salesforce.com"
-    apiVersion : "62.0"
+    apiVersion : "64.0"
     userName: "(ユーザ名)"
     password: "(パスワード)"
 #  - name: (任意の組織名2)
 #    loginUrl: "https://login.salesforce.com"
-#    apiVersion : "62.0"
+#    apiVersion : "64.0"
 #    userName: "(ユーザ名)"
 #    password: "(パスワード)"
 ```
@@ -137,9 +152,8 @@ $ node compare-permissions.js
 
 [OrgInfo]
   Name:(YOUR ORG NAME)
-  LoginUrl:https://login.salesforce.com
-  ApiVersion:62.0
-  UserName:(YOUR USER NAME)
+  InstanceUrl:https://(任意のドメイン名).my.salesforce.com
+  ApiVersion:65.0
 [Processing profile: カスタムシステム管理者]
   Retrieving base info...
   Retrieving object permissions...

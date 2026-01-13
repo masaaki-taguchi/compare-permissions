@@ -8,17 +8,30 @@ resultFilePath: "result.xlsx"
 #
 # 接続する組織の指定
 #
+# 組織への接続には、外部クライアントアプリケーションでクライアント資格情報フローのOAuth接続定義を作成する必要がある。
 # 複数指定した場合は、それぞれの組織のプロファイル/権限セットのメタデータを取得し、比較する。
 #
 org:
   - name: (任意の組織名1)
-    loginUrl: "https://test.salesforce.com"
-    apiVersion : "62.0"
-    userName: "(ユーザ名)"
-    password: "(パスワード)"
+    instanceUrl: "https://(任意のドメイン名).my.salesforce.com"
+    apiVersion : "65.0"
+    clientId: "(任意のコンシューマー鍵)"
+    clientSecret: "(任意のコンシューマーの秘密)"
+#  - name: (任意の組織名2)
+#    instanceUrl: "https://(任意のドメイン名).my.salesforce.com"
+#    apiVersion : "65.0"
+#    clientId: "(任意のコンシューマー鍵)"
+#    clientSecret: "(任意のコンシューマーの秘密)"
+
+# 以下はSOAPログインで接続する場合の設定。APIバージョン64.0まで、かつSummer'27まで有効。
+#  - name: (任意の組織名1)
+#    loginUrl: "https://test.salesforce.com"
+#    apiVersion : "64.0"
+#    userName: "(ユーザ名)"
+#    password: "(パスワード)"
 #  - name: (任意の組織名2)
 #    loginUrl: "https://login.salesforce.com"
-#    apiVersion : "62.0"
+#    apiVersion : "64.0"
 #    userName: "(ユーザ名)"
 #    password: "(パスワード)"
 

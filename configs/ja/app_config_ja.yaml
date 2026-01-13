@@ -46,6 +46,7 @@ objectPermissionsLabel:
   delete: "D"
   viewAll: "V"
   modifyAll: "M"
+  viewAllFields: "F"
 
 fieldLevelSecurityLabel:
   readable: "R"

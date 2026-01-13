@@ -50,17 +50,32 @@ $ npm ci
 ```
 
 ## Edit config file
-Open user_config.yaml and edit the organization name, login URL, user name, and password to match your environment.
+Open user_config.yaml and edit the name, instanceUrl, apiVersion, clientId, and clientSecret to match your environment. Connecting to the org requires creating an OAuth connection definition for the client credentials flow in the External Client Apps setting. When configuring OAuth, only the api scope is required.
+```
+org:
+  - name: (ANY ORGANIZATION NAME 1)
+    instanceUrl: "https://(YOUR DOMAIN).my.salesforce.com"
+    apiVersion : "65.0"
+    clientId: "(YOUR CLIENT ID)"
+    clientSecret: "(YOUR CLIENT SECRET)"
+#  - name: (ANY ORGANIZATION NAME 2)
+#    instanceUrl: "https://(YOUR DOMAIN).my.salesforce.com"
+#    apiVersion : "65.0"
+#    clientId: "(YOUR CLIENT ID)"
+#    clientSecret: "(YOUR CLIENT SECRET)"
+```
+
+The following SOAP login settings are valid up to API version 64.0 and until the Summer'27 release.
 ```
 org:
   - name: (ANY ORGANIZATION NAME 1)
     loginUrl: "https://test.salesforce.com"
-    apiVersion : "62.0"
+    apiVersion : "64.0"
     userName: "(YOUR USER NAME)"
     password: "(YOUR USER PASSWORD)"
 #  - name: (ANY ORGANIZATION NAME 2)
 #    loginUrl: "https://login.salesforce.com"
-#    apiVersion : "62.0"
+#    apiVersion : "64.0"
 #    userName: "(YOUR USER NAME)"
 #    password: "(YOUR USER PASSWORD)"
 ```
@@ -136,9 +151,8 @@ Execute logs are output to screen.
 
 [OrgInfo]
   Name:(YOUR ORG NAME)
-  LoginUrl:https://login.salesforce.com
-  ApiVersion:62.0
-  UserName:(YOUR USER NAME)
+  InstanceUrl:https://(YOUR DOMAIN).my.salesforce.com
+  ApiVersion:65.0
 [Processing profile: CustomAdmin]
   Retrieving base info...
   Retrieving object permissions...

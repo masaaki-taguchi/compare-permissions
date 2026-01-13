@@ -7,18 +7,30 @@ resultFilePath: "result.xlsx"
 
 #
 # define the connecting organizations
-#
-# If more than one is defined, the metadata for each organization's profile/permission set is retrieved and compared.
-#
+# 
+# Connecting to the org requires creating an OAuth connection definition for the client credentials flow in the External Client Apps setting.
+# If more than one org is defined, the metadata for each org's profile and permission sets is retrieved and compared.
 org:
   - name: (ANY ORGANIZATION NAME 1)
-    loginUrl: "https://test.salesforce.com"
-    apiVersion : "62.0"
-    userName: "(YOUR USER NAME)"
-    password: "(YOUR USER PASSWORD)"
+    instanceUrl: "https://(YOUR DOMAIN).my.salesforce.com"
+    apiVersion : "65.0"
+    clientId: "(YOUR CLIENT ID)"
+    clientSecret: "(YOUR CLIENT SECRET)"
+#  - name: (ANY ORGANIZATION NAME 2)
+#    instanceUrl: "https://(YOUR DOMAIN).my.salesforce.com"
+#    apiVersion : "65.0"
+#    clientId: "(YOUR CLIENT ID)"
+#    clientSecret: "(YOUR CLIENT SECRET)"
+
+# The following SOAP login settings are valid up to API version 64.0 and until the Summer27 release.
+#  - name: (ANY ORGANIZATION NAME 1)
+#    loginUrl: "https://test.salesforce.com"
+#    apiVersion : "64.0"
+#    userName: "(YOUR USER NAME)"
+#    password: "(YOUR USER PASSWORD)"
 #  - name: (ANY ORGANIZATION NAME 2)
 #    loginUrl: "https://login.salesforce.com"
-#    apiVersion : "62.0"
+#    apiVersion : "64.0"
 #    userName: "(YOUR USER NAME)"
 #    password: "(YOUR USER PASSWORD)"
 
